@@ -5,9 +5,13 @@ import Foundation
 @MainActor
 final class BitNowEncounterStore: ObservableObject {
     static let signalLifetime: TimeInterval = 45 * 60
+    static let advertiseVisibilityKey = "bitnow.radio-visible.v1"
 
     @Published var profile: BitNowProfile {
-        didSet { persistProfile() }
+        didSet {
+            persistProfile()
+            persistRadioVisibility()
+        }
     }
 
     @Published private(set) var outgoingSignals: [String: BitNowOutgoingSignal] = [:] {
@@ -34,6 +38,7 @@ final class BitNowEncounterStore: ObservableObject {
             outgoingSignals = decoded
         }
 
+        persistRadioVisibility()
         pruneExpiredSignals()
     }
 
@@ -123,6 +128,13 @@ final class BitNowEncounterStore: ObservableObject {
     private func persistProfile() {
         guard let data = try? JSONEncoder().encode(profile) else { return }
         defaults.set(data, forKey: profileKey)
+    }
+
+    private func persistRadioVisibility() {
+        defaults.set(
+            profile.visibleNearby && profile.isAdult,
+            forKey: Self.advertiseVisibilityKey
+        )
     }
 
     private func persistSignals() {
