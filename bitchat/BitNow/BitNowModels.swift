@@ -33,7 +33,7 @@ struct BitNowProfile: Codable, Equatable {
     var headline: String = ""
     var about: String = ""
     var primaryIntent: BitNowIntent = .now
-    var visibleNearby: Bool = true
+    var visibleNearby: Bool = false
     var showAge: Bool = true
 
     var isAdult: Bool { (18...99).contains(age) }
