@@ -39,6 +39,24 @@ struct BitNowProfile: Codable, Equatable {
     var isAdult: Bool { age >= 18 }
 }
 
+struct BitNowSharedProfile: Codable, Equatable {
+    let age: Int?
+    let headline: String
+    let about: String
+    let primaryIntent: BitNowIntent
+
+    init(profile: BitNowProfile) {
+        age = profile.showAge ? max(18, profile.age) : nil
+        headline = String(profile.headline.prefix(80))
+        about = String(profile.about.prefix(280))
+        primaryIntent = profile.primaryIntent
+    }
+
+    var ageLabel: String {
+        age.map(String.init) ?? "18+"
+    }
+}
+
 struct BitNowOutgoingSignal: Codable, Equatable, Identifiable {
     let peerID: String
     let intent: BitNowIntent
@@ -51,20 +69,105 @@ struct BitNowIncomingSignal: Equatable, Identifiable {
     let peerID: PeerID
     let intent: BitNowIntent
     let receivedAt: Date
+    let profile: BitNowSharedProfile?
 
     var id: String { peerID.id }
 }
 
-enum BitNowSignalCodec {
-    static let prefix = "⚡ BitNow • signal • "
+enum BitNowWireKind: String, Codable {
+    case signal
+    case profileRequest
+    case profile
+}
 
+struct BitNowWireEnvelope: Codable, Equatable {
+    static let currentVersion = 1
+
+    let version: Int
+    let kind: BitNowWireKind
+    let intent: BitNowIntent?
+    let profile: BitNowSharedProfile?
+    let sentAt: Date
+
+    init(
+        kind: BitNowWireKind,
+        intent: BitNowIntent? = nil,
+        profile: BitNowSharedProfile? = nil,
+        sentAt: Date = Date()
+    ) {
+        self.version = Self.currentVersion
+        self.kind = kind
+        self.intent = intent
+        self.profile = profile
+        self.sentAt = sentAt
+    }
+}
+
+enum BitNowWireCodec {
+    /// Invisible separator keeps the structured payload out of ordinary chat
+    /// rendering while preserving a readable fallback for non-BitNow clients.
+    private static let separator = "\u{2063}"
+    private static let legacySignalPrefix = "⚡ BitNow • signal • "
+
+    static func encodeSignal(_ intent: BitNowIntent, profile: BitNowProfile? = nil) -> String {
+        let envelope = BitNowWireEnvelope(
+            kind: .signal,
+            intent: intent,
+            profile: profile.map(BitNowSharedProfile.init(profile:))
+        )
+        return encode(envelope, visibleText: "⚡ BitNow signal — \(intent.title)")
+    }
+
+    static func encodeProfileRequest() -> String {
+        encode(BitNowWireEnvelope(kind: .profileRequest), visibleText: "⚡ BitNow profile request")
+    }
+
+    static func encodeProfile(_ profile: BitNowProfile) -> String {
+        encode(
+            BitNowWireEnvelope(kind: .profile, profile: BitNowSharedProfile(profile: profile)),
+            visibleText: "⚡ BitNow profile shared"
+        )
+    }
+
+    static func decode(_ content: String) -> BitNowWireEnvelope? {
+        if let separatorRange = content.range(of: separator) {
+            let payload = String(content[separatorRange.upperBound...])
+            guard let data = Data(base64Encoded: payload),
+                  let envelope = try? JSONDecoder().decode(BitNowWireEnvelope.self, from: data),
+                  envelope.version == BitNowWireEnvelope.currentVersion else {
+                return nil
+            }
+            return envelope
+        }
+
+        // Compatibility with the first BitNow v1 signal format.
+        if content.hasPrefix(legacySignalPrefix) {
+            let raw = String(content.dropFirst(legacySignalPrefix.count))
+            guard let intent = BitNowIntent(rawValue: raw) else { return nil }
+            return BitNowWireEnvelope(kind: .signal, intent: intent)
+        }
+
+        return nil
+    }
+
+    private static func encode(_ envelope: BitNowWireEnvelope, visibleText: String) -> String {
+        guard let data = try? JSONEncoder().encode(envelope) else { return visibleText }
+        return visibleText + separator + data.base64EncodedString()
+    }
+}
+
+/// Compatibility facade used by the encounter store and the initial tests.
+enum BitNowSignalCodec {
     static func encode(_ intent: BitNowIntent) -> String {
-        prefix + intent.rawValue
+        BitNowWireCodec.encodeSignal(intent)
+    }
+
+    static func encode(_ intent: BitNowIntent, profile: BitNowProfile) -> String {
+        BitNowWireCodec.encodeSignal(intent, profile: profile)
     }
 
     static func decode(_ content: String) -> BitNowIntent? {
-        guard content.hasPrefix(prefix) else { return nil }
-        let value = String(content.dropFirst(prefix.count))
-        return BitNowIntent(rawValue: value)
+        guard let envelope = BitNowWireCodec.decode(content), envelope.kind == .signal else { return nil }
+        return envelope.intent
     }
 }
