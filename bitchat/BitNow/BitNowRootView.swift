@@ -2,26 +2,18 @@ import BitFoundation
 import SwiftUI
 
 private enum BitNowTab: Hashable {
-    case nearby
-    case signals
-    case chats
-    case me
+    case nearby, signals, chats, me
 }
 
 struct BitNowRootView: View {
     @AppStorage("bitnow.onboarding.complete") private var onboardingComplete = false
-    @StateObject private var encounterStore = BitNowEncounterStore()
+    @StateObject private var store = BitNowEncounterStore()
 
     var body: some View {
-        Group {
-            if onboardingComplete {
-                BitNowMainView(store: encounterStore)
-            } else {
-                BitNowOnboardingView(
-                    store: encounterStore,
-                    onboardingComplete: $onboardingComplete
-                )
-            }
+        if onboardingComplete {
+            BitNowMainView(store: store)
+        } else {
+            BitNowOnboardingView(store: store, onboardingComplete: $onboardingComplete)
         }
     }
 }
@@ -60,7 +52,6 @@ private struct BitNowMainView: View {
 private struct BitNowOnboardingView: View {
     @ObservedObject var store: BitNowEncounterStore
     @Binding var onboardingComplete: Bool
-
     @State private var age = 18
     @State private var confirmedAdult = false
     @State private var acceptedConsentRule = false
@@ -81,9 +72,7 @@ private struct BitNowOnboardingView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Label("18+ only", systemImage: "18.circle.fill")
                             .font(.headline)
-
                         Stepper("age: \(age)", value: $age, in: 18...99)
-
                         Toggle("I confirm I am 18 or older", isOn: $confirmedAdult)
                         Toggle("I understand a signal is interest, not consent to anything else", isOn: $acceptedConsentRule)
                     }
@@ -118,11 +107,31 @@ private struct BitNowOnboardingView: View {
     }
 }
 
+private struct BitNowEmptyState: View {
+    let title: String
+    let systemImage: String
+    let detail: String
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.system(size: 42, weight: .semibold))
+            Text(title)
+                .font(.title3.weight(.bold))
+            Text(detail)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 420)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(32)
+    }
+}
+
 private struct BitNowNearbyView: View {
     @EnvironmentObject private var peerListModel: PeerListModel
     @EnvironmentObject private var privateConversationModel: PrivateConversationModel
     @EnvironmentObject private var conversationUIModel: ConversationUIModel
-
     @ObservedObject var store: BitNowEncounterStore
     @Binding var selectedTab: BitNowTab
 
@@ -139,16 +148,16 @@ private struct BitNowNearbyView: View {
     var body: some View {
         Group {
             if !store.profile.visibleNearby {
-                ContentUnavailableView(
-                    "you are invisible",
+                BitNowEmptyState(
+                    title: "you are invisible",
                     systemImage: "eye.slash.fill",
-                    description: Text("Turn nearby visibility back on from Me when you want to appear in the local encounter layer.")
+                    detail: "Turn nearby visibility back on from Me when you want to appear in the local encounter layer."
                 )
             } else if nearbyRows.isEmpty {
-                ContentUnavailableView(
-                    "nobody nearby yet",
+                BitNowEmptyState(
+                    title: "nobody nearby yet",
                     systemImage: "dot.radiowaves.left.and.right",
-                    description: Text("BitNow uses the local Bluetooth mesh. Nearby compatible peers appear here without publishing an exact map location.")
+                    detail: "BitNow uses the local Bluetooth mesh. Nearby compatible peers appear here without publishing an exact map location."
                 )
             } else {
                 ScrollView {
@@ -215,9 +224,7 @@ private struct BitNowNearbyCard: View {
             HStack(spacing: 10) {
                 Menu {
                     ForEach(BitNowIntent.allCases) { intent in
-                        Button {
-                            onSignal(intent)
-                        } label: {
+                        Button { onSignal(intent) } label: {
                             Label(intent.title, systemImage: intent.systemImage)
                         }
                     }
@@ -246,7 +253,6 @@ private struct BitNowSignalPerson: Identifiable {
     let row: MeshPeerRow
     let incoming: BitNowIncomingSignal
     let isMatch: Bool
-
     var id: String { row.id }
 }
 
@@ -254,37 +260,32 @@ private struct BitNowSignalsView: View {
     @EnvironmentObject private var peerListModel: PeerListModel
     @EnvironmentObject private var privateInboxModel: PrivateInboxModel
     @EnvironmentObject private var privateConversationModel: PrivateConversationModel
-
     @ObservedObject var store: BitNowEncounterStore
     @Binding var selectedTab: BitNowTab
 
     private var incoming: [BitNowSignalPerson] {
         peerListModel.meshRows.compactMap { row in
             guard !row.isMe, !row.isBlocked,
-                  let signal = store.latestIncomingSignal(from: row.peerID, inbox: privateInboxModel) else {
-                return nil
-            }
+                  let signal = store.latestIncomingSignal(from: row.peerID, inbox: privateInboxModel) else { return nil }
             return BitNowSignalPerson(
                 row: row,
                 incoming: signal,
                 isMatch: store.isMatch(with: row.peerID, inbox: privateInboxModel)
             )
         }
-        .sorted { lhs, rhs in
-            if lhs.isMatch != rhs.isMatch { return lhs.isMatch }
-            return lhs.incoming.receivedAt > rhs.incoming.receivedAt
+        .sorted {
+            if $0.isMatch != $1.isMatch { return $0.isMatch }
+            return $0.incoming.receivedAt > $1.incoming.receivedAt
         }
     }
 
     var body: some View {
         List {
-            if incoming.isEmpty {
-                Section {
+            Section("incoming") {
+                if incoming.isEmpty {
                     Text("No fresh incoming signals. Signals expire after 45 minutes.")
                         .foregroundStyle(.secondary)
-                }
-            } else {
-                Section("incoming") {
+                } else {
                     ForEach(incoming) { item in
                         Button {
                             privateConversationModel.startConversation(with: item.row.peerID)
@@ -292,17 +293,14 @@ private struct BitNowSignalsView: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: item.isMatch ? "heart.fill" : "bolt.fill")
-                                    .font(.title3)
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(item.row.displayName)
-                                        .font(.headline)
+                                    Text(item.row.displayName).font(.headline)
                                     Text(item.isMatch ? "MATCH • \(item.incoming.intent.title)" : "interested • \(item.incoming.intent.title)")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(.tertiary)
+                                Image(systemName: "chevron.right").foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -311,8 +309,7 @@ private struct BitNowSignalsView: View {
 
             Section("your active signals") {
                 if store.outgoingSignals.isEmpty {
-                    Text("Nothing active.")
-                        .foregroundStyle(.secondary)
+                    Text("Nothing active.").foregroundStyle(.secondary)
                 } else {
                     ForEach(store.outgoingSignals.values.sorted { $0.sentAt > $1.sentAt }) { signal in
                         HStack {
@@ -324,9 +321,7 @@ private struct BitNowSignalsView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button("clear") {
-                                store.clearSignal(peerIDString: signal.peerID)
-                            }
+                            Button("clear") { store.clearSignal(peerIDString: signal.peerID) }
                         }
                     }
                 }
@@ -362,9 +357,7 @@ private struct BitNowProfileView: View {
                 Text("BitNow nearby discovery is based on mesh reachability. This UI does not publish a precise map pin or continuous exact-distance readout.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Button("clear active signals", role: .destructive) {
-                    store.clearAllSignals()
-                }
+                Button("clear active signals", role: .destructive) { store.clearAllSignals() }
             }
         }
         .navigationTitle("me")
