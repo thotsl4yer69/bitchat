@@ -152,9 +152,34 @@ struct BitNowSignalTests {
         #expect(defaults.bool(forKey: BitNowEncounterStore.advertiseVisibilityKey) == false)
 
         store.profile.visibleNearby = true
+        #expect(store.availabilityUntil != nil)
         #expect(defaults.bool(forKey: BitNowEncounterStore.advertiseVisibilityKey))
 
         store.profile.visibleNearby = false
+        #expect(defaults.bool(forKey: BitNowEncounterStore.advertiseVisibilityKey) == false)
+    }
+
+    @MainActor
+    @Test func availabilityWindowExpiresAndClearsSignals() {
+        let suiteName = "BitNowSignalTests.expiry.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = BitNowEncounterStore(defaults: defaults)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        store.startAvailability(for: .thirtyMinutes, now: now)
+        #expect(store.profile.visibleNearby)
+        #expect(store.availabilityUntil == now.addingTimeInterval(30 * 60))
+
+        let peer = PeerID("0011223344556677")
+        store.recordOutgoingSignal(to: peer, intent: .now, now: now)
+        #expect(!store.outgoingSignals.isEmpty)
+
+        let expired = store.expireAvailabilityIfNeeded(now: now.addingTimeInterval(30 * 60 + 1))
+        #expect(expired)
+        #expect(!store.profile.visibleNearby)
+        #expect(store.availabilityUntil == nil)
+        #expect(store.outgoingSignals.isEmpty)
         #expect(defaults.bool(forKey: BitNowEncounterStore.advertiseVisibilityKey) == false)
     }
 }
