@@ -2,9 +2,42 @@ import Foundation
 import SwiftUI
 
 struct BitNowProfileFields: View {
+    @EnvironmentObject private var peerListModel: PeerListModel
     @ObservedObject var store: BitNowEncounterStore
 
     var body: some View {
+        Section("availability window") {
+            if let until = store.availabilityUntil, store.profile.visibleNearby {
+                HStack {
+                    Label("visible until", systemImage: "timer")
+                    Spacer()
+                    Text(until.formatted(date: .omitted, time: .shortened))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            } else {
+                Text("not advertising encounter availability")
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(BitNowAvailabilityWindow.allCases) { window in
+                Button {
+                    store.startAvailability(for: window)
+                    peerListModel.refreshLocalAdvertisement()
+                } label: {
+                    HStack {
+                        Text("visible for \(window.title)")
+                        Spacer()
+                        Image(systemName: "clock.arrow.circlepath")
+                    }
+                }
+            }
+
+            Text("BitNow has no permanent-visible mode. When the window expires, encounter advertising and active signals stop automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+
         Section("profile") {
             Stepper("age: \(store.profile.age)", value: $store.profile.age, in: 18...99)
             Toggle("show age", isOn: $store.profile.showAge)
@@ -22,7 +55,9 @@ struct BitNowProfileFields: View {
                     get: { store.profile.pronouns ?? "" },
                     set: { value in
                         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        store.profile.pronouns = trimmed.isEmpty ? nil : String(trimmed.prefix(BitNowSharedProfile.maxPronounsLength))
+                        store.profile.pronouns = trimmed.isEmpty
+                            ? nil
+                            : String(trimmed.prefix(BitNowSharedProfile.maxPronounsLength))
                     }
                 )
             )
