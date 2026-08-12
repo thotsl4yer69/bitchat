@@ -6,6 +6,7 @@ import Foundation
 final class BitNowEncounterStore: ObservableObject {
     static let signalLifetime: TimeInterval = 45 * 60
     static let advertiseVisibilityKey = "bitnow.radio-visible.v1"
+    static let availabilityUntilKey = "bitnow.availability-until.v1"
 
     @Published var profile: BitNowProfile {
         didSet {
@@ -16,6 +17,13 @@ final class BitNowEncounterStore: ObservableObject {
 
     @Published var discoveryFilter: BitNowDiscoveryFilter {
         didSet { persistDiscoveryFilter() }
+    }
+
+    @Published private(set) var availabilityUntil: Date? {
+        didSet {
+            persistAvailabilityUntil()
+            persistRadioVisibility()
+        }
     }
 
     @Published private(set) var outgoingSignals: [String: BitNowOutgoingSignal] = [:] {
@@ -31,12 +39,25 @@ final class BitNowEncounterStore: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
+        var loadedProfile: BitNowProfile
         if let data = defaults.data(forKey: profileKey),
            let decoded = try? JSONDecoder().decode(BitNowProfile.self, from: data) {
-            profile = decoded
+            loadedProfile = decoded
         } else {
-            profile = BitNowProfile()
+            loadedProfile = BitNowProfile()
         }
+
+        let storedAvailability = defaults.object(forKey: Self.availabilityUntilKey) as? Date
+        if loadedProfile.visibleNearby,
+           loadedProfile.isAdult,
+           let storedAvailability,
+           storedAvailability > Date() {
+            availabilityUntil = storedAvailability
+        } else {
+            loadedProfile.visibleNearby = false
+            availabilityUntil = nil
+        }
+        profile = loadedProfile
 
         if let data = defaults.data(forKey: filterKey),
            var decoded = try? JSONDecoder().decode(BitNowDiscoveryFilter.self, from: data) {
@@ -51,8 +72,53 @@ final class BitNowEncounterStore: ObservableObject {
             outgoingSignals = decoded
         }
 
+        persistProfile()
+        persistAvailabilityUntil()
         persistRadioVisibility()
         pruneExpiredSignals()
+    }
+
+    var isCurrentlyVisible: Bool {
+        guard profile.visibleNearby,
+              profile.isAdult,
+              let availabilityUntil else { return false }
+        return availabilityUntil > Date()
+    }
+
+    func startAvailability(
+        for window: BitNowAvailabilityWindow = .oneHour,
+        now: Date = Date()
+    ) {
+        availabilityUntil = now.addingTimeInterval(window.duration)
+        profile.visibleNearby = true
+        persistRadioVisibility()
+    }
+
+    func stopAvailability(clearSignals: Bool = true) {
+        profile.visibleNearby = false
+        availabilityUntil = nil
+        if clearSignals {
+            clearAllSignals()
+        }
+        persistRadioVisibility()
+    }
+
+    /// Returns true when an active availability window expired and state was
+    /// changed. Callers use this to immediately broadcast the removed BitNow
+    /// capability instead of waiting for periodic BLE maintenance.
+    @discardableResult
+    func expireAvailabilityIfNeeded(now: Date = Date()) -> Bool {
+        guard profile.visibleNearby else { return false }
+        guard let availabilityUntil, availabilityUntil > now else {
+            stopAvailability(clearSignals: true)
+            return true
+        }
+        return false
+    }
+
+    func availabilityRemaining(now: Date = Date()) -> TimeInterval? {
+        guard isCurrentlyVisible, let availabilityUntil else { return nil }
+        return max(0, availabilityUntil.timeIntervalSince(now))
     }
 
     func recordOutgoingSignal(to peerID: PeerID, intent: BitNowIntent, now: Date = Date()) {
@@ -152,11 +218,19 @@ final class BitNowEncounterStore: ObservableObject {
         defaults.set(data, forKey: filterKey)
     }
 
+    private func persistAvailabilityUntil() {
+        if let availabilityUntil {
+            defaults.set(availabilityUntil, forKey: Self.availabilityUntilKey)
+        } else {
+            defaults.removeObject(forKey: Self.availabilityUntilKey)
+        }
+    }
+
     private func persistRadioVisibility() {
-        defaults.set(
-            profile.visibleNearby && profile.isAdult,
-            forKey: Self.advertiseVisibilityKey
-        )
+        let active = profile.visibleNearby
+            && profile.isAdult
+            && (availabilityUntil?.timeIntervalSinceNow ?? -1) > 0
+        defaults.set(active, forKey: Self.advertiseVisibilityKey)
     }
 
     private func persistSignals() {
