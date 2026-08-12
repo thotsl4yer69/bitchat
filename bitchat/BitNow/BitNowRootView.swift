@@ -72,7 +72,8 @@ private struct BitNowMainView: View {
     private func respondToProfileRequests() {
         guard store.profile.visibleNearby, store.profile.isAdult else { return }
 
-        for row in peerListModel.meshRows where !row.isMe && !row.isBlocked {
+        for row in peerListModel.meshRows
+            where row.supportsBitNow && !row.isMe && !row.isBlocked {
             for message in privateInboxModel.messages(for: row.peerID).suffix(16) {
                 guard message.senderPeerID == row.peerID,
                       let envelope = BitNowWireCodec.decode(message.content),
@@ -187,7 +188,12 @@ private struct BitNowNearbyView: View {
     private var nearbyRows: [MeshPeerRow] {
         guard store.profile.visibleNearby else { return [] }
         return peerListModel.meshRows
-            .filter { !$0.isMe && !$0.isBlocked && ($0.isConnected || $0.isReachable) }
+            .filter {
+                $0.supportsBitNow
+                    && !$0.isMe
+                    && !$0.isBlocked
+                    && ($0.isConnected || $0.isReachable)
+            }
             .sorted {
                 if $0.isConnected != $1.isConnected { return $0.isConnected }
                 return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
@@ -204,9 +210,9 @@ private struct BitNowNearbyView: View {
                 )
             } else if nearbyRows.isEmpty {
                 BitNowEmptyState(
-                    title: "nobody nearby yet",
+                    title: "no BitNow peers nearby yet",
                     systemImage: "dot.radiowaves.left.and.right",
-                    detail: "BitNow uses the local Bluetooth mesh. Nearby compatible peers appear here without publishing an exact map location."
+                    detail: "Only nearby peers that explicitly advertise BitNow encounter support appear here. Ordinary BitChat users stay out of the encounter roster."
                 )
             } else {
                 ScrollView {
@@ -218,7 +224,8 @@ private struct BitNowNearbyView: View {
                                 outgoingSignal: store.outgoingSignal(to: row.peerID),
                                 onRequestProfile: { requestProfile(from: row.peerID) },
                                 onSignal: { intent in sendSignal(to: row.peerID, intent: intent) },
-                                onChat: { openChat(with: row.peerID) }
+                                onChat: { openChat(with: row.peerID) },
+                                onBlock: { block(row) }
                             )
                         }
                     }
@@ -250,6 +257,11 @@ private struct BitNowNearbyView: View {
         selectedTab = .chats
     }
 
+    private func block(_ row: MeshPeerRow) {
+        conversationUIModel.block(peerID: row.peerID, displayName: row.displayName)
+        store.clearSignal(for: row.peerID)
+    }
+
     private func sendControl(_ content: String, to peerID: PeerID) {
         let previousPeer = privateConversationModel.selectedPeerID
         privateConversationModel.startConversation(with: peerID)
@@ -269,6 +281,7 @@ private struct BitNowNearbyCard: View {
     let onRequestProfile: () -> Void
     let onSignal: (BitNowIntent) -> Void
     let onChat: () -> Void
+    let onBlock: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -291,6 +304,14 @@ private struct BitNowNearbyCard: View {
                     Image(systemName: "checkmark.seal.fill")
                         .accessibilityLabel("mutual trusted contact")
                 }
+                Menu {
+                    Button(role: .destructive, action: onBlock) {
+                        Label("block", systemImage: "hand.raised.fill")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("person options")
             }
 
             if let profile {
@@ -358,7 +379,9 @@ private struct BitNowSignalsView: View {
 
     private var incoming: [BitNowSignalPerson] {
         peerListModel.meshRows.compactMap { row in
-            guard !row.isMe, !row.isBlocked,
+            guard row.supportsBitNow,
+                  !row.isMe,
+                  !row.isBlocked,
                   let signal = store.latestIncomingSignal(from: row.peerID, inbox: privateInboxModel) else { return nil }
             return BitNowSignalPerson(
                 row: row,
