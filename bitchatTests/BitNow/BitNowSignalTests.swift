@@ -86,7 +86,7 @@ struct BitNowSignalTests {
     }
 
     @Test func oldV1ProfileWithoutIdentityFieldsStillDecodes() throws {
-        let json = """
+        let json = Data("""
         {
           "age": 29,
           "headline": "hello",
@@ -95,7 +95,7 @@ struct BitNowSignalTests {
           "visibleNearby": true,
           "showAge": true
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let profile = try JSONDecoder().decode(BitNowProfile.self, from: json)
         #expect(profile.age == 29)
