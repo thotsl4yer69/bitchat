@@ -10,6 +10,7 @@ final class BitNowEncounterStore: ObservableObject {
 
     @Published var profile: BitNowProfile {
         didSet {
+            syncAvailabilityWithProfile()
             persistProfile()
             persistRadioVisibility()
         }
@@ -23,6 +24,7 @@ final class BitNowEncounterStore: ObservableObject {
         didSet {
             persistAvailabilityUntil()
             persistRadioVisibility()
+            scheduleAvailabilityExpiration()
         }
     }
 
@@ -31,6 +33,7 @@ final class BitNowEncounterStore: ObservableObject {
     }
 
     private var handledProfileRequestIDs = Set<String>()
+    private var expirationTask: Task<Void, Never>?
     private let defaults: UserDefaults
     private let profileKey = "bitnow.profile.v1"
     private let filterKey = "bitnow.discovery-filter.v1"
@@ -76,6 +79,11 @@ final class BitNowEncounterStore: ObservableObject {
         persistAvailabilityUntil()
         persistRadioVisibility()
         pruneExpiredSignals()
+        scheduleAvailabilityExpiration()
+    }
+
+    deinit {
+        expirationTask?.cancel()
     }
 
     var isCurrentlyVisible: Bool {
@@ -95,8 +103,12 @@ final class BitNowEncounterStore: ObservableObject {
     }
 
     func stopAvailability(clearSignals: Bool = true) {
-        profile.visibleNearby = false
-        availabilityUntil = nil
+        if profile.visibleNearby {
+            profile.visibleNearby = false
+        }
+        if availabilityUntil != nil {
+            availabilityUntil = nil
+        }
         if clearSignals {
             clearAllSignals()
         }
@@ -104,8 +116,8 @@ final class BitNowEncounterStore: ObservableObject {
     }
 
     /// Returns true when an active availability window expired and state was
-    /// changed. Callers use this to immediately broadcast the removed BitNow
-    /// capability instead of waiting for periodic BLE maintenance.
+    /// changed. The radio capability independently checks the deadline too, so
+    /// suspension cannot extend encounter visibility.
     @discardableResult
     func expireAvailabilityIfNeeded(now: Date = Date()) -> Bool {
         guard profile.visibleNearby else { return false }
@@ -117,8 +129,11 @@ final class BitNowEncounterStore: ObservableObject {
     }
 
     func availabilityRemaining(now: Date = Date()) -> TimeInterval? {
-        guard isCurrentlyVisible, let availabilityUntil else { return nil }
-        return max(0, availabilityUntil.timeIntervalSince(now))
+        guard profile.visibleNearby,
+              profile.isAdult,
+              let availabilityUntil,
+              availabilityUntil > now else { return nil }
+        return availabilityUntil.timeIntervalSince(now)
     }
 
     func recordOutgoingSignal(to peerID: PeerID, intent: BitNowIntent, now: Date = Date()) {
@@ -205,6 +220,40 @@ final class BitNowEncounterStore: ObservableObject {
     func pruneExpiredSignals(now: Date = Date()) {
         outgoingSignals = outgoingSignals.filter {
             now.timeIntervalSince($0.value.sentAt) <= Self.signalLifetime
+        }
+    }
+
+    private func syncAvailabilityWithProfile(now: Date = Date()) {
+        if profile.visibleNearby && profile.isAdult {
+            if availabilityUntil == nil || (availabilityUntil ?? .distantPast) <= now {
+                availabilityUntil = now.addingTimeInterval(BitNowAvailabilityWindow.oneHour.duration)
+            }
+        } else if availabilityUntil != nil {
+            availabilityUntil = nil
+        }
+    }
+
+    private func scheduleAvailabilityExpiration() {
+        expirationTask?.cancel()
+        expirationTask = nil
+
+        guard profile.visibleNearby,
+              let availabilityUntil else { return }
+        let delay = availabilityUntil.timeIntervalSinceNow
+        guard delay > 0 else {
+            _ = expireAvailabilityIfNeeded()
+            return
+        }
+
+        let nanoseconds = UInt64(min(delay, 24 * 60 * 60) * 1_000_000_000)
+        expirationTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: nanoseconds)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            _ = self?.expireAvailabilityIfNeeded()
         }
     }
 
