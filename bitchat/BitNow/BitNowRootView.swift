@@ -99,6 +99,7 @@ private struct BitNowMainView: View {
 }
 
 private struct BitNowOnboardingView: View {
+    @EnvironmentObject private var peerListModel: PeerListModel
     @ObservedObject var store: BitNowEncounterStore
     @Binding var onboardingComplete: Bool
     @State private var age = 18
@@ -139,6 +140,7 @@ private struct BitNowOnboardingView: View {
                     Button {
                         store.profile.age = age
                         store.profile.visibleNearby = true
+                        peerListModel.refreshLocalAdvertisement()
                         onboardingComplete = true
                     } label: {
                         Text("enter bitnow")
@@ -459,6 +461,7 @@ private struct BitNowSignalsView: View {
 }
 
 private struct BitNowProfileView: View {
+    @EnvironmentObject private var peerListModel: PeerListModel
     @ObservedObject var store: BitNowEncounterStore
 
     var body: some View {
@@ -494,5 +497,8 @@ private struct BitNowProfileView: View {
             }
         }
         .navigationTitle("me")
+        .onChange(of: store.profile.visibleNearby) { _ in
+            peerListModel.refreshLocalAdvertisement()
+        }
     }
 }
