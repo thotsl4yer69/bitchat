@@ -86,13 +86,6 @@ final class BitNowEncounterStore: ObservableObject {
         expirationTask?.cancel()
     }
 
-    var isCurrentlyVisible: Bool {
-        guard profile.visibleNearby,
-              profile.isAdult,
-              let availabilityUntil else { return false }
-        return availabilityUntil > Date()
-    }
-
     func startAvailability(
         for window: BitNowAvailabilityWindow = .oneHour,
         now: Date = Date()
@@ -126,14 +119,6 @@ final class BitNowEncounterStore: ObservableObject {
             return true
         }
         return false
-    }
-
-    func availabilityRemaining(now: Date = Date()) -> TimeInterval? {
-        guard profile.visibleNearby,
-              profile.isAdult,
-              let availabilityUntil,
-              availabilityUntil > now else { return nil }
-        return availabilityUntil.timeIntervalSince(now)
     }
 
     func recordOutgoingSignal(to peerID: PeerID, intent: BitNowIntent, now: Date = Date()) {
