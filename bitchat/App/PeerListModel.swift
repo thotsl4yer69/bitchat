@@ -111,6 +111,13 @@ final class PeerListModel: ObservableObject {
         chatViewModel.toggleFavorite(peerID: peerID)
     }
 
+    /// Pushes the current local capability set immediately instead of waiting
+    /// for the next periodic BLE announce. BitNow uses this when encounter
+    /// visibility changes so disappearing from discovery is prompt.
+    func refreshLocalAdvertisement() {
+        chatViewModel.meshService.sendBroadcastAnnounce()
+    }
+
     func openGeohashDirectMessage(with pubkeyHex: String) {
         chatViewModel.startGeohashDM(withPubkeyHex: pubkeyHex)
     }
