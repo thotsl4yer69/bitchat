@@ -82,6 +82,10 @@ final class BitNowEncounterStore: ObservableObject {
         outgoingSignals.removeValue(forKey: peerID.id)
     }
 
+    func clearSignal(peerIDString: String) {
+        outgoingSignals.removeValue(forKey: peerIDString)
+    }
+
     func clearAllSignals() {
         outgoingSignals.removeAll()
     }
