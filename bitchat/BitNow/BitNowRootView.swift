@@ -317,7 +317,7 @@ private struct BitNowSignalsView: View {
                     ForEach(store.outgoingSignals.values.sorted { $0.sentAt > $1.sentAt }) { signal in
                         HStack {
                             VStack(alignment: .leading) {
-                                Text(signal.peerID.prefix(10) + "…")
+                                Text(String(signal.peerID.prefix(10)) + "…")
                                     .font(.subheadline.monospaced())
                                 Text(signal.intent.title)
                                     .font(.caption)
@@ -325,7 +325,7 @@ private struct BitNowSignalsView: View {
                             }
                             Spacer()
                             Button("clear") {
-                                store.outgoingSignals[signal.peerID] = nil
+                                store.clearSignal(peerIDString: signal.peerID)
                             }
                         }
                     }
