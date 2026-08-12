@@ -36,24 +36,34 @@ struct BitNowProfile: Codable, Equatable {
     var visibleNearby: Bool = true
     var showAge: Bool = true
 
-    var isAdult: Bool { age >= 18 }
+    var isAdult: Bool { (18...99).contains(age) }
 }
 
 struct BitNowSharedProfile: Codable, Equatable {
+    static let maxHeadlineLength = 80
+    static let maxAboutLength = 280
+
     let age: Int?
     let headline: String
     let about: String
     let primaryIntent: BitNowIntent
 
     init(profile: BitNowProfile) {
-        age = profile.showAge ? max(18, profile.age) : nil
-        headline = String(profile.headline.prefix(80))
-        about = String(profile.about.prefix(280))
+        age = profile.showAge && profile.isAdult ? profile.age : nil
+        headline = String(profile.headline.prefix(Self.maxHeadlineLength))
+        about = String(profile.about.prefix(Self.maxAboutLength))
         primaryIntent = profile.primaryIntent
     }
 
     var ageLabel: String {
-        age.map(String.init) ?? "18+"
+        age.map { String($0) } ?? "18+"
+    }
+
+    var isValid: Bool {
+        let ageIsValid = age.map { (18...99).contains($0) } ?? true
+        return ageIsValid
+            && headline.count <= Self.maxHeadlineLength
+            && about.count <= Self.maxAboutLength
     }
 }
 
@@ -101,19 +111,32 @@ struct BitNowWireEnvelope: Codable, Equatable {
         self.profile = profile
         self.sentAt = sentAt
     }
+
+    var isValid: Bool {
+        guard version == Self.currentVersion,
+              profile?.isValid != false else { return false }
+
+        switch kind {
+        case .signal:
+            return intent != nil
+        case .profileRequest:
+            return intent == nil && profile == nil
+        case .profile:
+            return intent == nil && profile != nil
+        }
+    }
 }
 
 enum BitNowWireCodec {
-    /// Invisible separator keeps the structured payload out of ordinary chat
-    /// rendering while preserving a readable fallback for non-BitNow clients.
     private static let separator = "\u{2063}"
     private static let legacySignalPrefix = "⚡ BitNow • signal • "
+    private static let maxEncodedPayloadLength = 8_192
 
     static func encodeSignal(_ intent: BitNowIntent, profile: BitNowProfile? = nil) -> String {
         let envelope = BitNowWireEnvelope(
             kind: .signal,
             intent: intent,
-            profile: profile.map(BitNowSharedProfile.init(profile:))
+            profile: profile.map { BitNowSharedProfile(profile: $0) }
         )
         return encode(envelope, visibleText: "⚡ BitNow signal — \(intent.title)")
     }
@@ -132,15 +155,16 @@ enum BitNowWireCodec {
     static func decode(_ content: String) -> BitNowWireEnvelope? {
         if let separatorRange = content.range(of: separator) {
             let payload = String(content[separatorRange.upperBound...])
-            guard let data = Data(base64Encoded: payload),
+            guard !payload.isEmpty,
+                  payload.count <= maxEncodedPayloadLength,
+                  let data = Data(base64Encoded: payload),
                   let envelope = try? JSONDecoder().decode(BitNowWireEnvelope.self, from: data),
-                  envelope.version == BitNowWireEnvelope.currentVersion else {
+                  envelope.isValid else {
                 return nil
             }
             return envelope
         }
 
-        // Compatibility with the first BitNow v1 signal format.
         if content.hasPrefix(legacySignalPrefix) {
             let raw = String(content.dropFirst(legacySignalPrefix.count))
             guard let intent = BitNowIntent(rawValue: raw) else { return nil }
@@ -151,12 +175,12 @@ enum BitNowWireCodec {
     }
 
     private static func encode(_ envelope: BitNowWireEnvelope, visibleText: String) -> String {
-        guard let data = try? JSONEncoder().encode(envelope) else { return visibleText }
+        guard envelope.isValid,
+              let data = try? JSONEncoder().encode(envelope) else { return visibleText }
         return visibleText + separator + data.base64EncodedString()
     }
 }
 
-/// Compatibility facade used by the encounter store and the initial tests.
 enum BitNowSignalCodec {
     static func encode(_ intent: BitNowIntent) -> String {
         BitNowWireCodec.encodeSignal(intent)
