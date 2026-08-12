@@ -186,6 +186,7 @@ private struct BitNowNearbyView: View {
 
     @ObservedObject var store: BitNowEncounterStore
     @Binding var selectedTab: BitNowTab
+    @State private var showingFilters = false
 
     private var nearbyRows: [MeshPeerRow] {
         guard store.profile.visibleNearby else { return [] }
@@ -195,6 +196,15 @@ private struct BitNowNearbyView: View {
                     && !$0.isMe
                     && !$0.isBlocked
                     && ($0.isConnected || $0.isReachable)
+            }
+            .filter { row in
+                guard let profile = store.latestSharedProfile(
+                    from: row.peerID,
+                    inbox: privateInboxModel
+                ) else {
+                    return true
+                }
+                return store.discoveryAllows(profile)
             }
             .sorted {
                 if $0.isConnected != $1.isConnected { return $0.isConnected }
@@ -212,17 +222,22 @@ private struct BitNowNearbyView: View {
                 )
             } else if nearbyRows.isEmpty {
                 BitNowEmptyState(
-                    title: "no BitNow peers nearby yet",
+                    title: "no matching BitNow peers nearby",
                     systemImage: "dot.radiowaves.left.and.right",
-                    detail: "Only nearby peers that explicitly advertise BitNow encounter support appear here. Ordinary BitChat users stay out of the encounter roster."
+                    detail: "Only nearby peers that explicitly advertise BitNow encounter availability appear here. Known profiles also respect your local filters."
                 )
             } else {
                 ScrollView {
                     LazyVStack(spacing: 14) {
                         ForEach(nearbyRows) { row in
+                            let profile = store.latestSharedProfile(
+                                from: row.peerID,
+                                inbox: privateInboxModel
+                            )
                             BitNowNearbyCard(
                                 row: row,
-                                profile: store.latestSharedProfile(from: row.peerID, inbox: privateInboxModel),
+                                profile: profile,
+                                reciprocalFit: reciprocalFit(profile),
                                 outgoingSignal: store.outgoingSignal(to: row.peerID),
                                 onRequestProfile: { requestProfile(from: row.peerID) },
                                 onSignal: { intent in sendSignal(to: row.peerID, intent: intent) },
@@ -237,12 +252,30 @@ private struct BitNowNearbyView: View {
         }
         .navigationTitle("nearby now")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 Text("\(nearbyRows.count) here")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                Button {
+                    showingFilters = true
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                }
+                .accessibilityLabel("discovery filters")
             }
         }
+        .sheet(isPresented: $showingFilters) {
+            NavigationStack {
+                BitNowFiltersView(store: store)
+            }
+        }
+    }
+
+    private func reciprocalFit(_ remoteProfile: BitNowSharedProfile?) -> Bool {
+        guard let localIdentity = store.profile.identity,
+              let interests = remoteProfile?.interestedIn,
+              !interests.isEmpty else { return false }
+        return interests.contains(localIdentity)
     }
 
     private func sendSignal(to peerID: PeerID, intent: BitNowIntent) {
@@ -279,6 +312,7 @@ private struct BitNowNearbyView: View {
 private struct BitNowNearbyCard: View {
     let row: MeshPeerRow
     let profile: BitNowSharedProfile?
+    let reciprocalFit: Bool
     let outgoingSignal: BitNowOutgoingSignal?
     let onRequestProfile: () -> Void
     let onSignal: (BitNowIntent) -> Void
@@ -317,9 +351,23 @@ private struct BitNowNearbyCard: View {
             }
 
             if let profile {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        if let identity = profile.identityLabel {
+                            Text(identity).font(.subheadline.weight(.semibold))
+                        }
+                        if let pronouns = profile.pronouns, !pronouns.isEmpty {
+                            Text("• \(pronouns)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     Label(profile.primaryIntent.title, systemImage: profile.primaryIntent.systemImage)
                         .font(.subheadline.weight(.semibold))
+                    if reciprocalFit {
+                        Label("you fit their stated type", systemImage: "checkmark.circle.fill")
+                            .font(.caption.weight(.semibold))
+                    }
                     if !profile.headline.isEmpty {
                         Text(profile.headline).font(.subheadline)
                     }
@@ -475,16 +523,10 @@ private struct BitNowProfileView: View {
                 }
             }
 
-            Section("profile") {
-                Stepper("age: \(store.profile.age)", value: $store.profile.age, in: 18...99)
-                Toggle("show age", isOn: $store.profile.showAge)
-                TextField("headline", text: $store.profile.headline)
-                TextField("about / boundaries / vibe", text: $store.profile.about, axis: .vertical)
-                    .lineLimit(3...7)
-            }
+            BitNowProfileFields(store: store)
 
             Section("privacy") {
-                Text("Profiles are shared only through encrypted one-to-one BitNow control messages. Nearby discovery itself does not publish a precise map pin or continuous exact-distance readout.")
+                Text("Profiles and dating preferences are shared only through encrypted one-to-one BitNow control messages. Nearby discovery itself does not publish a precise map pin or continuous exact-distance readout.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Button("go invisible now", role: .destructive) {
