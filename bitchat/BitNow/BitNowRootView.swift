@@ -19,6 +19,11 @@ struct BitNowRootView: View {
 }
 
 private struct BitNowMainView: View {
+    @EnvironmentObject private var peerListModel: PeerListModel
+    @EnvironmentObject private var privateInboxModel: PrivateInboxModel
+    @EnvironmentObject private var privateConversationModel: PrivateConversationModel
+    @EnvironmentObject private var conversationUIModel: ConversationUIModel
+
     @ObservedObject var store: BitNowEncounterStore
     @State private var selectedTab: BitNowTab = .nearby
 
@@ -45,6 +50,49 @@ private struct BitNowMainView: View {
             }
             .tabItem { Label("me", systemImage: "person.crop.circle.fill") }
             .tag(BitNowTab.me)
+        }
+        .onReceive(privateInboxModel.objectWillChange) { _ in
+            scheduleProfileRequestScan()
+        }
+        .onChange(of: peerListModel.renderID) { _ in
+            scheduleProfileRequestScan()
+        }
+        .onAppear {
+            scheduleProfileRequestScan()
+        }
+    }
+
+    private func scheduleProfileRequestScan() {
+        Task { @MainActor in
+            await Task.yield()
+            respondToProfileRequests()
+        }
+    }
+
+    private func respondToProfileRequests() {
+        guard store.profile.visibleNearby, store.profile.isAdult else { return }
+
+        for row in peerListModel.meshRows where !row.isMe && !row.isBlocked {
+            for message in privateInboxModel.messages(for: row.peerID).suffix(16) {
+                guard message.senderPeerID == row.peerID,
+                      let envelope = BitNowWireCodec.decode(message.content),
+                      envelope.kind == .profileRequest,
+                      store.claimProfileRequest(messageID: message.id) else {
+                    continue
+                }
+                sendControl(BitNowWireCodec.encodeProfile(store.profile), to: row.peerID)
+            }
+        }
+    }
+
+    private func sendControl(_ content: String, to peerID: PeerID) {
+        let previousPeer = privateConversationModel.selectedPeerID
+        privateConversationModel.startConversation(with: peerID)
+        conversationUIModel.sendMessage(content)
+        if let previousPeer {
+            privateConversationModel.startConversation(with: previousPeer)
+        } else {
+            privateConversationModel.endConversation()
         }
     }
 }
@@ -116,8 +164,7 @@ private struct BitNowEmptyState: View {
         VStack(spacing: 14) {
             Image(systemName: systemImage)
                 .font(.system(size: 42, weight: .semibold))
-            Text(title)
-                .font(.title3.weight(.bold))
+            Text(title).font(.title3.weight(.bold))
             Text(detail)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -130,8 +177,10 @@ private struct BitNowEmptyState: View {
 
 private struct BitNowNearbyView: View {
     @EnvironmentObject private var peerListModel: PeerListModel
+    @EnvironmentObject private var privateInboxModel: PrivateInboxModel
     @EnvironmentObject private var privateConversationModel: PrivateConversationModel
     @EnvironmentObject private var conversationUIModel: ConversationUIModel
+
     @ObservedObject var store: BitNowEncounterStore
     @Binding var selectedTab: BitNowTab
 
@@ -165,8 +214,10 @@ private struct BitNowNearbyView: View {
                         ForEach(nearbyRows) { row in
                             BitNowNearbyCard(
                                 row: row,
-                                store: store,
-                                onSignal: { intent in sendSignal(to: row, intent: intent) },
+                                profile: store.latestSharedProfile(from: row.peerID, inbox: privateInboxModel),
+                                outgoingSignal: store.outgoingSignal(to: row.peerID),
+                                onRequestProfile: { requestProfile(from: row.peerID) },
+                                onSignal: { intent in sendSignal(to: row.peerID, intent: intent) },
                                 onChat: { openChat(with: row.peerID) }
                             )
                         }
@@ -185,22 +236,37 @@ private struct BitNowNearbyView: View {
         }
     }
 
-    private func sendSignal(to row: MeshPeerRow, intent: BitNowIntent) {
-        privateConversationModel.startConversation(with: row.peerID)
-        conversationUIModel.sendMessage(BitNowSignalCodec.encode(intent))
-        store.recordOutgoingSignal(to: row.peerID, intent: intent)
-        privateConversationModel.endConversation()
+    private func sendSignal(to peerID: PeerID, intent: BitNowIntent) {
+        sendControl(BitNowSignalCodec.encode(intent, profile: store.profile), to: peerID)
+        store.recordOutgoingSignal(to: peerID, intent: intent)
+    }
+
+    private func requestProfile(from peerID: PeerID) {
+        sendControl(BitNowWireCodec.encodeProfileRequest(), to: peerID)
     }
 
     private func openChat(with peerID: PeerID) {
         privateConversationModel.startConversation(with: peerID)
         selectedTab = .chats
     }
+
+    private func sendControl(_ content: String, to peerID: PeerID) {
+        let previousPeer = privateConversationModel.selectedPeerID
+        privateConversationModel.startConversation(with: peerID)
+        conversationUIModel.sendMessage(content)
+        if let previousPeer {
+            privateConversationModel.startConversation(with: previousPeer)
+        } else {
+            privateConversationModel.endConversation()
+        }
+    }
 }
 
 private struct BitNowNearbyCard: View {
     let row: MeshPeerRow
-    @ObservedObject var store: BitNowEncounterStore
+    let profile: BitNowSharedProfile?
+    let outgoingSignal: BitNowOutgoingSignal?
+    let onRequestProfile: () -> Void
     let onSignal: (BitNowIntent) -> Void
     let onChat: () -> Void
 
@@ -208,8 +274,14 @@ private struct BitNowNearbyCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(row.displayName)
-                        .font(.title3.weight(.bold))
+                    HStack(spacing: 8) {
+                        Text(row.displayName).font(.title3.weight(.bold))
+                        if let profile {
+                            Text(profile.ageLabel)
+                                .font(.subheadline.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     Text(row.isConnected ? "HERE NOW" : "NEARBY RECENTLY")
                         .font(.caption.weight(.black))
                         .foregroundStyle(row.isConnected ? .primary : .secondary)
@@ -221,6 +293,27 @@ private struct BitNowNearbyCard: View {
                 }
             }
 
+            if let profile {
+                VStack(alignment: .leading, spacing: 5) {
+                    Label(profile.primaryIntent.title, systemImage: profile.primaryIntent.systemImage)
+                        .font(.subheadline.weight(.semibold))
+                    if !profile.headline.isEmpty {
+                        Text(profile.headline).font(.subheadline)
+                    }
+                    if !profile.about.isEmpty {
+                        Text(profile.about)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                    }
+                }
+            } else {
+                Button(action: onRequestProfile) {
+                    Label("ask for profile", systemImage: "person.text.rectangle")
+                }
+                .buttonStyle(.borderless)
+            }
+
             HStack(spacing: 10) {
                 Menu {
                     ForEach(BitNowIntent.allCases) { intent in
@@ -230,7 +323,7 @@ private struct BitNowNearbyCard: View {
                     }
                 } label: {
                     Label(
-                        store.outgoingSignal(to: row.peerID) == nil ? "signal" : "signalled",
+                        outgoingSignal == nil ? "signal" : "signalled",
                         systemImage: "bolt.heart.fill"
                     )
                     .frame(maxWidth: .infinity)
@@ -294,10 +387,21 @@ private struct BitNowSignalsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: item.isMatch ? "heart.fill" : "bolt.fill")
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(item.row.displayName).font(.headline)
+                                    HStack(spacing: 6) {
+                                        Text(item.row.displayName).font(.headline)
+                                        if let age = item.incoming.profile?.ageLabel {
+                                            Text(age).font(.caption.monospacedDigit())
+                                        }
+                                    }
                                     Text(item.isMatch ? "MATCH • \(item.incoming.intent.title)" : "interested • \(item.incoming.intent.title)")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.secondary)
+                                    if let headline = item.incoming.profile?.headline, !headline.isEmpty {
+                                        Text(headline)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right").foregroundStyle(.secondary)
@@ -354,10 +458,16 @@ private struct BitNowProfileView: View {
             }
 
             Section("privacy") {
-                Text("BitNow nearby discovery is based on mesh reachability. This UI does not publish a precise map pin or continuous exact-distance readout.")
+                Text("Profiles are shared only through encrypted one-to-one BitNow control messages. Nearby discovery itself does not publish a precise map pin or continuous exact-distance readout.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Button("clear active signals", role: .destructive) { store.clearAllSignals() }
+                Button("go invisible now", role: .destructive) {
+                    store.profile.visibleNearby = false
+                    store.clearAllSignals()
+                }
+                Button("clear active signals", role: .destructive) {
+                    store.clearAllSignals()
+                }
             }
         }
         .navigationTitle("me")
