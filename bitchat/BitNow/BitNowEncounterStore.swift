@@ -14,6 +14,7 @@ final class BitNowEncounterStore: ObservableObject {
         didSet { persistSignals() }
     }
 
+    private var handledProfileRequestIDs = Set<String>()
     private let defaults: UserDefaults
     private let profileKey = "bitnow.profile.v1"
     private let signalsKey = "bitnow.outgoing-signals.v1"
@@ -61,14 +62,31 @@ final class BitNowEncounterStore: ObservableObject {
         for message in inbox.messages(for: peerID).reversed() {
             guard message.senderPeerID == peerID,
                   now.timeIntervalSince(message.timestamp) <= Self.signalLifetime,
-                  let intent = BitNowSignalCodec.decode(message.content) else {
+                  let envelope = BitNowWireCodec.decode(message.content),
+                  envelope.kind == .signal,
+                  let intent = envelope.intent else {
                 continue
             }
             return BitNowIncomingSignal(
                 peerID: peerID,
                 intent: intent,
-                receivedAt: message.timestamp
+                receivedAt: message.timestamp,
+                profile: envelope.profile
             )
+        }
+        return nil
+    }
+
+    func latestSharedProfile(from peerID: PeerID, inbox: PrivateInboxModel) -> BitNowSharedProfile? {
+        for message in inbox.messages(for: peerID).reversed() {
+            guard message.senderPeerID == peerID,
+                  let envelope = BitNowWireCodec.decode(message.content) else {
+                continue
+            }
+            if let profile = envelope.profile,
+               envelope.kind == .profile || envelope.kind == .signal {
+                return profile
+            }
         }
         return nil
     }
@@ -76,6 +94,12 @@ final class BitNowEncounterStore: ObservableObject {
     func isMatch(with peerID: PeerID, inbox: PrivateInboxModel, now: Date = Date()) -> Bool {
         outgoingSignal(to: peerID, now: now) != nil
             && latestIncomingSignal(from: peerID, inbox: inbox, now: now) != nil
+    }
+
+    /// Returns true exactly once for a profile-request message ID in this app
+    /// session. This prevents duplicate automatic responses on SwiftUI refreshes.
+    func claimProfileRequest(messageID: String) -> Bool {
+        handledProfileRequestIDs.insert(messageID).inserted
     }
 
     func clearSignal(for peerID: PeerID) {
