@@ -14,6 +14,10 @@ final class BitNowEncounterStore: ObservableObject {
         }
     }
 
+    @Published var discoveryFilter: BitNowDiscoveryFilter {
+        didSet { persistDiscoveryFilter() }
+    }
+
     @Published private(set) var outgoingSignals: [String: BitNowOutgoingSignal] = [:] {
         didSet { persistSignals() }
     }
@@ -21,6 +25,7 @@ final class BitNowEncounterStore: ObservableObject {
     private var handledProfileRequestIDs = Set<String>()
     private let defaults: UserDefaults
     private let profileKey = "bitnow.profile.v1"
+    private let filterKey = "bitnow.discovery-filter.v1"
     private let signalsKey = "bitnow.outgoing-signals.v1"
 
     init(defaults: UserDefaults = .standard) {
@@ -31,6 +36,14 @@ final class BitNowEncounterStore: ObservableObject {
             profile = decoded
         } else {
             profile = BitNowProfile()
+        }
+
+        if let data = defaults.data(forKey: filterKey),
+           var decoded = try? JSONDecoder().decode(BitNowDiscoveryFilter.self, from: data) {
+            decoded.normalize()
+            discoveryFilter = decoded
+        } else {
+            discoveryFilter = BitNowDiscoveryFilter()
         }
 
         if let data = defaults.data(forKey: signalsKey),
@@ -96,6 +109,10 @@ final class BitNowEncounterStore: ObservableObject {
         return nil
     }
 
+    func discoveryAllows(_ profile: BitNowSharedProfile) -> Bool {
+        discoveryFilter.matches(profile)
+    }
+
     func isMatch(with peerID: PeerID, inbox: PrivateInboxModel, now: Date = Date()) -> Bool {
         outgoingSignal(to: peerID, now: now) != nil
             && latestIncomingSignal(from: peerID, inbox: inbox, now: now) != nil
@@ -128,6 +145,11 @@ final class BitNowEncounterStore: ObservableObject {
     private func persistProfile() {
         guard let data = try? JSONEncoder().encode(profile) else { return }
         defaults.set(data, forKey: profileKey)
+    }
+
+    private func persistDiscoveryFilter() {
+        guard let data = try? JSONEncoder().encode(discoveryFilter) else { return }
+        defaults.set(data, forKey: filterKey)
     }
 
     private func persistRadioVisibility() {
