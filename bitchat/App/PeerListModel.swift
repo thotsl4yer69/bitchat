@@ -11,7 +11,7 @@ struct MeshPeerRow: Identifiable, Equatable {
     let isFavorite: Bool
     let isConnected: Bool
     let isReachable: Bool
-    let supportsBitNow: Bool = false
+    var supportsBitNow: Bool = false
     let isMutualFavorite: Bool
     let encryptionStatus: EncryptionStatus
     let showsVerifiedBadgeWhenOffline: Bool
