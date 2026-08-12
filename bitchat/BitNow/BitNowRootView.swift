@@ -536,6 +536,9 @@ private struct BitNowProfileView: View {
                 Button("clear active signals", role: .destructive) {
                     store.clearAllSignals()
                 }
+                Button("erase encounter profile and preferences", role: .destructive) {
+                    store.clearLocalEncounterData()
+                }
             }
         }
         .navigationTitle("me")

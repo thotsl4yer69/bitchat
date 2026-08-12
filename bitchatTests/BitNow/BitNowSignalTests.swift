@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import BitFoundation
+@testable import BitFoundation
 @testable import bitchat
 
 struct BitNowSignalTests {
@@ -172,13 +172,40 @@ struct BitNowSignalTests {
         #expect(store.profile.visibleNearby)
         #expect(store.availabilityUntil == now.addingTimeInterval(30 * 60))
 
-        let peer = PeerID("0011223344556677")
+        let peer = PeerID(str: "0011223344556677")
         store.recordOutgoingSignal(to: peer, intent: .now, now: now)
         #expect(!store.outgoingSignals.isEmpty)
 
         let expired = store.expireAvailabilityIfNeeded(now: now.addingTimeInterval(30 * 60 + 1))
         #expect(expired)
         #expect(!store.profile.visibleNearby)
+        #expect(store.availabilityUntil == nil)
+        #expect(store.outgoingSignals.isEmpty)
+        #expect(defaults.bool(forKey: BitNowEncounterStore.advertiseVisibilityKey) == false)
+    }
+
+    @MainActor
+    @Test func clearingLocalEncounterDataRestoresPrivateDefaults() {
+        let suiteName = "BitNowSignalTests.clear.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = BitNowEncounterStore(defaults: defaults)
+        store.profile.age = 29
+        store.profile.headline = "private headline"
+        store.profile.about = "private preferences"
+        store.profile.identity = .woman
+        store.profile.interestedIn = [.man]
+        store.startAvailability(for: .oneHour)
+        store.recordOutgoingSignal(
+            to: PeerID(str: "0011223344556677"),
+            intent: .now
+        )
+
+        store.clearLocalEncounterData()
+
+        #expect(store.profile == BitNowProfile())
+        #expect(store.discoveryFilter == BitNowDiscoveryFilter())
         #expect(store.availabilityUntil == nil)
         #expect(store.outgoingSignals.isEmpty)
         #expect(defaults.bool(forKey: BitNowEncounterStore.advertiseVisibilityKey) == false)

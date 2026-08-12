@@ -217,6 +217,13 @@ final class BitNowEncounterStore: ObservableObject {
         outgoingSignals.removeAll()
     }
 
+    func clearLocalEncounterData() {
+        stopAvailability(clearSignals: true)
+        profile = BitNowProfile()
+        discoveryFilter = BitNowDiscoveryFilter()
+        handledProfileRequestIDs.removeAll()
+    }
+
     func pruneExpiredSignals(now: Date = Date()) {
         outgoingSignals = outgoingSignals.filter {
             now.timeIntervalSince($0.value.sentAt) <= Self.signalLifetime
