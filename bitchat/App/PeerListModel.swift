@@ -11,6 +11,7 @@ struct MeshPeerRow: Identifiable, Equatable {
     let isFavorite: Bool
     let isConnected: Bool
     let isReachable: Bool
+    let supportsBitNow: Bool = false
     let isMutualFavorite: Bool
     let encryptionStatus: EncryptionStatus
     let showsVerifiedBadgeWhenOffline: Bool
@@ -236,6 +237,9 @@ final class PeerListModel: ObservableObject {
             // Vouched is subordinate to verified: never show both seals.
             let vouchedBadge = !isVerifiedFingerprint
                 && (fingerprint.map { chatViewModel.isVouchedFingerprint($0) } ?? false)
+            let supportsBitNow = isMe || chatViewModel.meshService
+                .peerCapabilities(peer.peerID)
+                .contains(.bitNow)
 
             return MeshPeerRow(
                 peerID: peer.peerID,
@@ -246,6 +250,7 @@ final class PeerListModel: ObservableObject {
                 isFavorite: peer.favoriteStatus?.isFavorite ?? false,
                 isConnected: peer.isConnected,
                 isReachable: peer.isReachable,
+                supportsBitNow: supportsBitNow,
                 isMutualFavorite: peer.isMutualFavorite,
                 encryptionStatus: chatViewModel.getEncryptionStatus(for: peer.peerID),
                 showsVerifiedBadgeWhenOffline: verifiedBadge,
@@ -276,7 +281,7 @@ final class PeerListModel: ObservableObject {
         self.recentChatRows = recentChatRows
         renderID = (
             meshRows.map {
-                "\($0.id)-\($0.displayName)-\($0.isConnected)-\($0.isReachable)-\($0.hasUnread)-\($0.isFavorite)-\($0.isBlocked)"
+                "\($0.id)-\($0.displayName)-\($0.isConnected)-\($0.isReachable)-\($0.supportsBitNow)-\($0.hasUnread)-\($0.isFavorite)-\($0.isBlocked)"
             } +
             geohashPeople.map {
                 "geo:\($0.id)-\($0.isTeleported)-\($0.isBlocked)-\($0.displayName)"
