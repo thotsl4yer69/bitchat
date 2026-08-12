@@ -26,9 +26,7 @@ struct PeerCapabilitiesTests {
             PeerCapabilities.nonDestructiveNoiseReplacement.encoded()
                 == Data([0x00, 0x04])
         )
-
-        let high = PeerCapabilities(rawValue: 1 << 11)
-        #expect(high.encoded() == Data([0x00, 0x08]))
+        #expect(PeerCapabilities.bitNow.encoded() == Data([0x00, 0x08]))
 
         let all: PeerCapabilities = [
             .prekeys,
@@ -40,10 +38,11 @@ struct PeerCapabilitiesTests {
             .meshDiagnostics,
             .privateMedia,
             .privateMediaReceipts,
-            .nonDestructiveNoiseReplacement
+            .nonDestructiveNoiseReplacement,
+            .bitNow
         ]
         #expect(PeerCapabilities(encoded: all.encoded()) == all)
-        #expect(PeerCapabilities(encoded: high.encoded()) == high)
+        #expect(PeerCapabilities(encoded: PeerCapabilities.bitNow.encoded()) == .bitNow)
         #expect(PeerCapabilities(encoded: PeerCapabilities([]).encoded()) == [])
     }
 
@@ -53,6 +52,7 @@ struct PeerCapabilitiesTests {
         let unknown = PeerCapabilities(encoded: Data([0xFF, 0xFF]))
         #expect(unknown.rawValue == 0xFFFF)
         #expect(unknown.contains(.gateway))
+        #expect(unknown.contains(.bitNow))
 
         // Fields longer than 8 bytes keep the low 64 bits and ignore the rest.
         let oversized = Data([0x01] + [UInt8](repeating: 0x00, count: 7) + [0xAA, 0xBB])
