@@ -5,21 +5,6 @@
 
 import Foundation
 
-private enum RegexCache {
-    static let cashu: NSRegularExpression = {
-        try! NSRegularExpression(pattern: "\\bcashu[AB][A-Za-z0-9._-]{40,}\\b", options: [])
-    }()
-    static let lightningScheme: NSRegularExpression = {
-        try! NSRegularExpression(pattern: "(?i)\\blightning:[^\\s]+", options: [])
-    }()
-    static let bolt11: NSRegularExpression = {
-        try! NSRegularExpression(pattern: "(?i)\\bln(bc|tb|bcrt)[0-9][a-z0-9]{50,}\\b", options: [])
-    }()
-    static let lnurl: NSRegularExpression = {
-        try! NSRegularExpression(pattern: "(?i)\\blnurl1[a-z0-9]{20,}\\b", options: [])
-    }()
-}
-
 extension String {
     // Detect if there is an extremely long token (no whitespace/newlines) that could break layout
     func hasVeryLongToken(threshold: Int) -> Bool {
@@ -36,15 +21,39 @@ extension String {
         return current >= threshold
     }
 
-    // Extract up to `max` Cashu tokens (cashuA/cashuB). Allow dot '.' and shorter lengths.
-    func extractCashuTokens(max: Int = 3) -> [String] {
-        let regex = RegexCache.cashu
+    /// True when the message should collapse behind Show more in the UI.
+    /// Length alone decides this — embedding a Cashu-looking token must not
+    /// disable the guard (remote DoS via unbounded layout).
+    func isLongForDisplay(
+        lengthThreshold: Int = TransportConfig.uiLongMessageLengthThreshold,
+        tokenThreshold: Int = TransportConfig.uiVeryLongTokenThreshold
+    ) -> Bool {
+        count > lengthThreshold || hasVeryLongToken(threshold: tokenThreshold)
+    }
+
+    /// True when rich formatting (regex / link detectors) should be skipped.
+    /// Cashu presence used to exempt oversized content from the plain path;
+    /// that let untrusted input force expensive formatting work.
+    func isOversizedForRichFormatting(
+        lengthThreshold: Int = 4000,
+        tokenThreshold: Int = 1024
+    ) -> Bool {
+        count > lengthThreshold || hasVeryLongToken(threshold: tokenThreshold)
+    }
+
+    // Extract up to `max` distinct Cashu tokens (cashuA/cashuB), as the bare
+    // bearer strings. Allow dot '.' and shorter lengths. The `cashu:` URI
+    // form matches too — the token embedded after the scheme is the match.
+    func extractCashuLinks(max: Int = 3) -> [String] {
+        let regex = MessageFormattingEngine.Patterns.cashu
         let ns = self as NSString
         let range = NSRange(location: 0, length: ns.length)
         var found: [String] = []
-        for m in regex.matches(in: self, options: [], range: range) {
-            if m.numberOfRanges > 0 {
-                let token = ns.substring(with: m.range(at: 0))
+        for m in regex.matches(in: self, range: range) where m.numberOfRanges > 0 {
+            let token = ns.substring(with: m.range(at: 0))
+            // Dedup: repeated tokens are one bearer instrument (and duplicate
+            // ForEach IDs) — one chip is enough.
+            if !found.contains(token) {
                 found.append(token)
                 if found.count >= max { break }
             }
@@ -58,19 +67,19 @@ extension String {
         let ns = self as NSString
         let full = NSRange(location: 0, length: ns.length)
         // lightning: scheme
-        for m in RegexCache.lightningScheme.matches(in: self, options: [], range: full) {
+        for m in MessageFormattingEngine.Patterns.lightningScheme.matches(in: self, range: full) {
             let s = ns.substring(with: m.range(at: 0))
             results.append(s)
             if results.count >= max { return results }
         }
         // BOLT11
-        for m in RegexCache.bolt11.matches(in: self, options: [], range: full) {
+        for m in MessageFormattingEngine.Patterns.bolt11.matches(in: self, range: full) {
             let s = ns.substring(with: m.range(at: 0))
             results.append("lightning:\(s)")
             if results.count >= max { return results }
         }
         // LNURL bech32
-        for m in RegexCache.lnurl.matches(in: self, options: [], range: full) {
+        for m in MessageFormattingEngine.Patterns.lnurl.matches(in: self, range: full) {
             let s = ns.substring(with: m.range(at: 0))
             results.append("lightning:\(s)")
             if results.count >= max { return results }
