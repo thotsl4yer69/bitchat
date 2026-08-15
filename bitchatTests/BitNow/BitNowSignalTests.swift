@@ -11,6 +11,11 @@ struct BitNowSignalTests {
         }
     }
 
+    @Test func immediateIntentKeepsWireCompatibilityWhileUsingDatingCopy() {
+        #expect(BitNowIntent.now.rawValue == "now")
+        #expect(BitNowIntent.now.title == "meet now")
+    }
+
     @Test func signalCarriesSharedProfileSnapshot() throws {
         var profile = BitNowProfile(
             age: 27,
@@ -57,15 +62,36 @@ struct BitNowSignalTests {
         #expect(BitNowSignalCodec.decode("⚡ BitNow") == nil)
     }
 
+    @Test func profilePolicyAllowsNormalDatingCopyAndBlocksProhibitedSolicitation() {
+        #expect(BitNowProfileContentPolicy.allows(
+            headline: "coffee tonight?",
+            about: "meet first and see if we click"
+        ))
+        #expect(!BitNowProfileContentPolicy.allows(
+            headline: "17yo looking to meet",
+            about: ""
+        ))
+        #expect(!BitNowProfileContentPolicy.allows(
+            headline: "meet tonight",
+            about: "cash for sex"
+        ))
+        #expect(!BitNowProfileContentPolicy.allows(
+            headline: "hello",
+            about: "send nudes"
+        ))
+    }
+
     @Test func profileRequiresAdultAgeAndDefaultsInvisible() {
         var profile = BitNowProfile()
         #expect(!profile.visibleNearby)
 
         profile.age = 18
         #expect(profile.isAdult)
+        #expect(profile.isShareable)
 
         profile.age = 17
         #expect(!profile.isAdult)
+        #expect(!profile.isShareable)
     }
 
     @Test func profilePersistenceRoundTrips() throws {
@@ -158,6 +184,28 @@ struct BitNowSignalTests {
 
         store.profile.visibleNearby = false
         #expect(defaults.bool(forKey: BitNowEncounterStore.advertiseVisibilityKey) == false)
+    }
+
+    @MainActor
+    @Test func prohibitedProfileFailsClosedAndTurnsVisibilityOff() {
+        let suiteName = "BitNowSignalTests.policy.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = BitNowEncounterStore(defaults: defaults)
+        store.startAvailability(for: .oneHour)
+        #expect(store.profile.visibleNearby)
+
+        store.profile.about = "cash for sex"
+
+        #expect(!store.profile.isShareable)
+        #expect(!store.profile.visibleNearby)
+        #expect(store.availabilityUntil == nil)
+        #expect(defaults.bool(forKey: BitNowEncounterStore.advertiseVisibilityKey) == false)
+
+        store.startAvailability(for: .oneHour)
+        #expect(!store.profile.visibleNearby)
+        #expect(store.availabilityUntil == nil)
     }
 
     @MainActor
