@@ -221,6 +221,12 @@ final class BitNowEncounterStore: ObservableObject {
     }
 
     private func syncAvailabilityWithProfile(now: Date = Date()) {
+        if profile.visibleNearby && !profile.isShareable {
+            profile.visibleNearby = false
+            clearAllSignals()
+            return
+        }
+
         if profile.visibleNearby && profile.isShareable {
             if availabilityUntil == nil || (availabilityUntil ?? .distantPast) <= now {
                 availabilityUntil = now.addingTimeInterval(BitNowAvailabilityWindow.oneHour.duration)
