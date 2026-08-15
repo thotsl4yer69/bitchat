@@ -16,8 +16,17 @@ struct BitNowProfileFields: View {
                         .monospacedDigit()
                 }
             } else {
-                Text("not advertising encounter availability")
+                Text("not advertising dating availability")
                     .foregroundStyle(.secondary)
+            }
+
+            if !store.profile.isShareable {
+                Label(
+                    "Fix the profile warning below before turning on nearby visibility.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.red)
             }
 
             ForEach(BitNowAvailabilityWindow.allCases) { window in
@@ -31,9 +40,10 @@ struct BitNowProfileFields: View {
                         Image(systemName: "clock.arrow.circlepath")
                     }
                 }
+                .disabled(!store.profile.isShareable)
             }
 
-            Text("BitNow has no permanent-visible mode. When the window expires, encounter advertising and active signals stop automatically.")
+            Text("BitNow has no permanent-visible mode. When the window expires, dating discovery and active signals stop automatically.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -62,9 +72,28 @@ struct BitNowProfileFields: View {
                 )
             )
 
-            TextField("headline", text: $store.profile.headline)
-            TextField("about / boundaries / vibe", text: $store.profile.about, axis: .vertical)
-                .lineLimit(3...7)
+            TextField(
+                "headline",
+                text: Binding(
+                    get: { store.profile.headline },
+                    set: { store.profile.headline = String($0.prefix(BitNowSharedProfile.maxHeadlineLength)) }
+                )
+            )
+            TextField(
+                "about / boundaries / vibe",
+                text: Binding(
+                    get: { store.profile.about },
+                    set: { store.profile.about = String($0.prefix(BitNowSharedProfile.maxAboutLength)) }
+                ),
+                axis: .vertical
+            )
+            .lineLimit(3...7)
+
+            if !store.profile.isShareable {
+                Text("This profile cannot be shared. BitNow blocks profile text that indicates an under-18 user, transactional sexual services, or explicit-content solicitation. Edit the profile to continue.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
 
         Section("open to meeting") {
