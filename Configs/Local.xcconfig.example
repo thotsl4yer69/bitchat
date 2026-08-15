@@ -5,3 +5,8 @@ DEVELOPMENT_TEAM = ABC123
 // with another BitNow installation or require the release identifiers.
 PRODUCT_BUNDLE_IDENTIFIER = app.bitnow.mesh.$(DEVELOPMENT_TEAM)
 APP_GROUP_ID = group.app.bitnow.mesh.$(DEVELOPMENT_TEAM)
+
+// Required before a public store build. Use a real moderation/support inbox
+// controlled by the BitNow operator; do not point sensitive reports at a
+// public issue tracker.
+BITNOW_REPORT_EMAIL = safety@example.com
