@@ -11,7 +11,7 @@ enum BitNowIntent: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .now: return "right now"
+        case .now: return "meet now"
         case .tonight: return "tonight"
         case .meetFirst: return "meet first"
         case .chatFirst: return "chat first"
