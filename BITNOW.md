@@ -1,114 +1,87 @@
 # BitNow
 
-BitNow is an adults-only, proximity-first encounters app built on the modern BitChat mesh and encrypted messaging core.
+BitNow is an adults-only, proximity-first **dating and meeting** app built on the modern BitChat mesh and encrypted messaging core.
 
 ## Product thesis
 
-Most dating and hookup apps begin with a centralized directory and an approximate map. BitNow begins with **actual nearby network presence**: compatible devices directly connected over Bluetooth or recently reachable through the mesh.
+Most dating apps begin with a centralized directory. BitNow begins with **actual nearby network presence**: compatible devices directly connected over Bluetooth or recently reachable through the mesh.
 
-The core question is simple: **who is actually here, right now?**
+The core question is: **who is actually nearby, now?**
 
-The user sees nearby people, deliberately shared profiles, encounter intent, signals, matches and encrypted chat. The transport core decides whether delivery is direct BLE, multi-hop mesh, courier/store-and-forward or Nostr fallback.
+The user chooses when to become discoverable, sees compatible nearby adults, requests deliberately shared profiles, sends short-lived interest signals, matches, and continues into encrypted private chat. The transport core decides whether delivery is direct BLE, multi-hop mesh, courier/store-and-forward, or optional Nostr fallback.
 
 ## Implemented v1 flow
 
-1. **18+ onboarding.** The user confirms adulthood and explicitly acknowledges that an interest signal is not consent to anything else.
-2. **Opt-in availability.** Encounter visibility defaults off. Turning it on creates a time-limited availability window.
-3. **Expiring visibility.** The default window is one hour; the user can choose 30 minutes, 1 hour, 2 hours or 4 hours. There is no permanent-visible mode.
-4. **BitNow-only discovery.** Ordinary BitChat users never enter the encounter roster. A BitNow capability bit is advertised only while the user is actively visible.
-5. **Local discovery.** Nearby BitNow peers appear as `HERE NOW` or `NEARBY RECENTLY`; no precise map pin or continuous distance is displayed.
-6. **Encrypted profile exchange.** A user can request a nearby peer's profile. A visible, unblocked BitNow peer replies through the existing encrypted one-to-one path.
-7. **Adult profile.** Age may be shared or withheld as `18+`; identity, pronouns, headline, boundaries/about text, encounter intent and who someone is open to meeting are optional profile fields.
-8. **Local filters.** Age range, identity and intent filtering happens on-device after a profile is received. Hidden values are not inferred.
-9. **Interest signal.** Signals carry intent plus only the sender's intentionally shared profile snapshot and expire after 45 minutes.
-10. **Match.** A fresh outgoing signal plus a fresh incoming signal from the same peer becomes a match.
-11. **Encrypted chat.** Matching is not required to start a conversation; the existing private-chat transport remains available.
-12. **Block / disappear.** Blocking is immediate. Going invisible clears active signals. Expiry also clears active signals.
+1. **18+ onboarding.** The user confirms adulthood and acknowledges that an interest signal is not consent. Finishing onboarding leaves nearby visibility off.
+2. **Explicit availability.** The user chooses a 30-minute, 1-hour, 2-hour, or 4-hour visibility window. There is no permanent-visible mode.
+3. **BitNow-only discovery.** Ordinary BitChat users never enter the dating roster. Capability bit 11 is advertised only during valid BitNow availability.
+4. **Coarse proximity UI.** Peers appear as `HERE NOW` or `NEARBY RECENTLY`; BitNow does not expose a public exact-location pin or continuous exact-distance readout.
+5. **Encrypted profile exchange.** A user can request a nearby peer's profile. A visible, unblocked, policy-valid BitNow peer replies over the encrypted one-to-one path.
+6. **Adult profile.** Age may be shared or represented as `18+`; identity, pronouns, headline, boundaries/about text, dating intent, and who someone is open to meeting are optional.
+7. **Local filtering.** Age range, identity, and intent filtering happens on-device after a profile is received. Hidden values are not inferred.
+8. **Interest signals.** Signals carry intent plus the sender's intentionally shared profile snapshot and expire after 45 minutes.
+9. **Match.** A fresh outgoing signal plus a fresh incoming signal from the same peer becomes a match.
+10. **Encrypted chat.** Existing private chat remains the conversation layer.
+11. **Block and report.** A nearby peer can be blocked locally or reported through the private safety-report flow configured for the signed release.
+12. **Automatic expiry.** Going invisible or reaching the availability deadline clears active outgoing signals and removes BitNow advertising.
+
+## Dating intents
+
+The wire values remain stable for compatibility:
+
+```text
+now        -> meet now
+tonight    -> tonight
+meetFirst  -> meet first
+chatFirst  -> chat first
+```
+
+Changing `now` to the user-facing label `meet now` does not change the v1 protocol value.
+
+## Trust and safety
+
+BitNow's public product rules are defined in `COMMUNITY_GUIDELINES.md` and its public-release gate in `STORE_RELEASE.md`.
+
+The current app:
+
+- is 18+ only;
+- treats signals as interest, never consent;
+- blocks dating-profile sharing when profile text indicates under-18 use, transactional sexual services, or explicit-content solicitation patterns;
+- turns nearby availability off if a currently visible profile becomes unshareable;
+- supports local blocking;
+- supports a private report flow to the operator-controlled `BITNOW_REPORT_EMAIL` configured in the signed release; and
+- deliberately fails the reporting flow closed when no moderation contact is configured.
+
+A public issue tracker is not the intended destination for sensitive safety reports.
 
 ## Privacy model
 
-BitNow deliberately does **not** publish an exact encounter-location pin or a continuous exact-distance readout.
+BitNow deliberately does **not** publish an exact dating-location pin or continuous exact-distance readout.
 
-The BLE announce carries only BitNow encounter **availability support** through capability bit 11. It does not carry age, identity, pronouns, sexual/dating preferences, encounter intent, profile text or coordinates.
+BLE capability bit 11 advertises only that the peer is currently available to the BitNow dating layer. It does not contain age, identity, pronouns, dating preferences, intent, profile text, or coordinates.
 
-The BitNow capability itself is dynamic:
+The capability is dynamic:
 
-- before onboarding: off;
-- while invisible: off;
-- while an active availability window exists: on;
-- after the deadline: off, even if the app was suspended before its UI timer could run.
+- before the user enables availability: off;
+- during a valid availability window: on;
+- after going invisible: off;
+- after the stored deadline: off, even if app UI work was suspended.
 
-Profiles and signals use the existing encrypted private-message routing path. Profile text is bounded before sending and validated after decoding. Malformed/oversized control envelopes and invalid adult ages are rejected.
+Profiles and signals use the existing encrypted private-message routing path. Profile data is bounded and validated before it is accepted as BitNow control data.
 
-The underlying BitChat protocol still has a known metadata limitation: its base radio identity is stable enough to permit correlation by a capable local observer. BitNow does not claim that this is solved. Rotating on-air encounter identity remains protocol-hardening work.
+The underlying BitChat protocol still has a metadata limitation: its base radio/cryptographic identity can be stable enough to permit correlation by a capable observer. BitNow does not claim that this is solved. Rotating on-air identity remains later protocol-hardening work.
 
-## Structured profile
+## Control messages versus normal chat
 
-Current optional profile fields:
+BitNow v1 uses a versioned structured control envelope over the existing encrypted private-message transport for signals, profile requests, and profile replies.
 
-```text
-age / hidden as 18+
-identity
-pronouns
-headline
-about / boundaries / vibe
-primary encounter intent
-open-to-meeting identities
-```
+The raw private inbox retains those messages so BitNow can process them, but the normal `MessageListView` filters valid BitNow control envelopes out of the visible direct-message timeline, unread-count path, and private-chat scroll targets. Users therefore do not see profile requests or signals as ordinary chat rows.
 
-Current encounter intents:
+A future dedicated typed private payload would further separate control data at the transport layer rather than only at the presentation/lifecycle layer.
 
-```text
-right now
-tonight
-meet first
-chat first
-```
+## Wire envelope
 
-Local filters:
-
-```text
-minimum / maximum age
-identity
-encounter intent
-```
-
-A restrictive age filter excludes profiles that withheld age rather than trying to infer it. The same principle applies to identity filtering.
-
-## Compatibility strategy
-
-BitNow keeps the modern BitChat transport/security core intact:
-
-- BLE packet framing and service identifiers;
-- Noise private sessions;
-- message routing;
-- courier/store-and-forward;
-- Nostr fallback;
-- panic wipe and existing trust/block mechanisms.
-
-That separation lets BitNow continue to import upstream protocol and security improvements without coupling every product feature to the transport layer.
-
-### BitNow capability
-
-`PeerCapabilities.bitNow = 1 << 11`
-
-This bit means only: **the peer is currently advertising BitNow encounter availability and understands the BitNow encounter layer**.
-
-It is intentionally not a profile bitfield.
-
-### BitNow v1 control envelope
-
-Signals and profile exchange currently use versioned structured control data carried inside the existing encrypted private-message transport.
-
-Readable fallback:
-
-```text
-⚡ BitNow signal — right now
-⚡ BitNow profile request
-⚡ BitNow profile shared
-```
-
-A U+2063 invisible separator follows the fallback, then Base64 JSON:
+Readable fallback plus a U+2063 separator and Base64 JSON carries:
 
 ```text
 version
@@ -118,9 +91,21 @@ profile?
 sentAt
 ```
 
-The decoder rejects unknown versions, malformed Base64/JSON, oversized payloads, invalid profile fields and invalid kind/payload combinations. The first textual signal form remains readable for early-v1 compatibility.
+The decoder rejects unknown versions, malformed Base64/JSON, oversized payloads, invalid ages, invalid field lengths, prohibited shared-profile content, and invalid kind/payload combinations.
 
-This bridge is deliberately versioned so it can later be replaced with a dedicated typed encrypted BitNow payload.
+## Compatibility strategy
+
+BitNow keeps the modern BitChat transport/security core intact:
+
+- BLE packet framing and service identifiers;
+- Noise private sessions;
+- message routing;
+- courier/store-and-forward;
+- optional Nostr fallback;
+- existing trust/block mechanisms; and
+- existing media/chat capabilities.
+
+That separation allows upstream protocol/security improvements to continue without coupling every BitNow product feature to the transport layer.
 
 ## Product identity
 
@@ -133,105 +118,57 @@ Bundle ID: app.bitnow.mesh
 App Group: group.app.bitnow.mesh
 ```
 
-The upstream developer signing team is not inherited. A developer copies `Configs/Local.xcconfig.example` and supplies their own Apple Team ID / local identifiers.
+The upstream developer signing team is not inherited. `Configs/Local.xcconfig.example` documents developer-specific signing identifiers and the required private moderation email configuration.
 
-## Architecture
+## Tests
 
-```text
-BitNow UI
-  ├─ Nearby
-  ├─ Filters
-  ├─ Signals / matches
-  ├─ Chats
-  └─ Profile / availability
-        │
-        ▼
-BitNow encounter layer
-  ├─ adult profile
-  ├─ expiring radio visibility
-  ├─ encrypted profile exchange
-  ├─ versioned signal/profile envelope
-  ├─ local discovery filters
-  ├─ match state
-  └─ block / privacy defaults
-        │
-        ▼
-Existing BitChat app models
-  ├─ PeerListModel
-  ├─ PrivateConversationModel
-  ├─ PrivateInboxModel
-  └─ ConversationUIModel
-        │
-        ▼
-Modern BitChat transport core
-  ├─ BLE mesh
-  ├─ Noise encryption
-  ├─ courier/store-and-forward
-  └─ Nostr fallback
-```
-
-## Tests added
-
-The BitNow branch adds regression coverage for:
+BitNow regression coverage includes:
 
 - every signal intent round-trip;
+- stable `now` wire value with `meet now` display copy;
 - profile snapshot round-trip;
 - hidden age;
 - profile-request envelope;
 - ordinary chat not being parsed as BitNow control traffic;
 - 18+ profile validation;
-- old v1 profile migration after new optional fields were added;
+- prohibited-profile filtering;
+- fail-closed visibility when a profile becomes unshareable;
+- old v1 profile migration;
 - age / identity / intent filters;
 - reciprocal preference logic;
-- radio visibility gate;
-- availability expiry and signal clearing;
+- radio visibility gating;
+- availability expiry and signal clearing; and
 - BitNow peer-capability encoding.
 
 ## Android status
 
-The current `thotsl4yer69/bitchat-android` repository is a separate July-2025 implementation with no common Git ancestry with the modern Android upstream and an unimplemented private-message decryption path.
+The current `thotsl4yer69/bitchat-android` repository is an older independent implementation rather than the modern encrypted Android BitChat core.
 
-A separate branch/PR now contains the matching BitNow v1 Kotlin codec, profile model, tests and BitNow application identity, but **encounter transmission is intentionally disabled until that repository is moved to the modern encrypted Android transport**. BitNow will not ship sensitive encounter data over a plaintext legacy private-message path.
+Its BitNow branch is intentionally a **protocol-preview build**. The insecure legacy BLE/private-message service was removed from the preview build, and no BitNow dating profile or signal data is transmitted. The preview APK CI is green.
 
-## Remaining release work
+Production Android remains gated on migration to the current encrypted transport plus Swift/Kotlin interoperability fixtures.
 
-### 1. CI must be green
+## Public-release status
 
-The Apple PR stays draft until the repository's existing SwiftPM, iOS/macOS Xcode, performance and dead-code jobs complete successfully. At the time this document was updated, GitHub's macOS jobs were queued rather than failed.
+The Apple feature branch is a release candidate, not a public production release. Before public distribution, the exact head must pass automated CI and the external release gates in `STORE_RELEASE.md`, including:
 
-### 2. Dedicated typed BitNow private payload
+- real moderation/support contact configuration;
+- production Apple signing;
+- two-physical-iPhone BLE end-to-end testing;
+- final app icon/store artwork;
+- stable privacy/support URLs; and
+- App Store metadata, privacy, content, and review submission.
 
-The v1 control envelope currently rides through the normal encrypted DM pipeline. This preserves security/routing but means its readable fallback can exist in conversation history. Move BitNow control traffic to a dedicated typed encrypted payload so encounter protocol traffic and user chat have independent lifecycle/unread semantics.
+`APP_STORE_METADATA.md` contains the current truthful submission copy and reviewer flow.
 
-### 3. Rotating on-air encounter identity
-
-Design an epoch-rotating alias/recognition scheme so encounter presence is less linkable over time without breaking authenticated peer identity after connection.
-
-### 4. Profile media
-
-Add explicit, opt-in, size-bounded profile media over the encrypted private-media path. Never broadcast profile images in BLE advertisements.
-
-### 5. Android transport migration
-
-Move the BitNow Kotlin layer onto current `permissionlesstech/bitchat-android`, then prove Swift ↔ Kotlin behavior with shared fixtures before release.
-
-### 6. Release/legal packaging
-
-Finalize app icon/brand assets, privacy policy, age rating/distribution requirements, signing identifiers and beta/release packaging.
-
-## Branches / pull requests
-
-Apple:
+## Branches
 
 ```text
-main                  original September-2025 fork snapshot
+Apple
 bitnow/core-2026-08   clean modern upstream baseline
-agent/bitnow-v1       BitNow implementation
-```
+agent/bitnow-v1       BitNow release-candidate work
 
-Android:
-
-```text
-main                    old July-2025 implementation
-agent/bitnow-android-v1 protocol/product preparation only
+Android
+main                    old independent implementation
+agent/bitnow-android-v1 fail-closed protocol preview
 ```
