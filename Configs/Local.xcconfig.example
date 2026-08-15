@@ -1,8 +1,12 @@
-// Your Apple Developer Team ID - https://stackoverflow.com/a/18727947
+// Your Apple Developer Team ID.
 DEVELOPMENT_TEAM = ABC123
 
-// Unique bundle id to be able to register and run locally
-PRODUCT_BUNDLE_IDENTIFIER = chat.bitchat.$(DEVELOPMENT_TEAM)
+// Use developer-specific identifiers so local signed builds do not collide
+// with another BitNow installation or require the release identifiers.
+PRODUCT_BUNDLE_IDENTIFIER = app.bitnow.mesh.$(DEVELOPMENT_TEAM)
+APP_GROUP_ID = group.app.bitnow.mesh.$(DEVELOPMENT_TEAM)
 
-// App and share extension must use an App Group registered to your team.
-APP_GROUP_ID = group.chat.bitchat.$(DEVELOPMENT_TEAM)
+// Required before a public store build. Use a real moderation/support inbox
+// controlled by the BitNow operator; do not point sensitive reports at a
+// public issue tracker.
+BITNOW_REPORT_EMAIL = safety@example.com

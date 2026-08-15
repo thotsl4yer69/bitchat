@@ -40,6 +40,10 @@ public struct PeerCapabilities: OptionSet, Equatable, Hashable, Sendable {
     /// this bit; keep it decodable so the wire assignment is never reused.
     public static let nonDestructiveNoiseReplacement =
         PeerCapabilities(rawValue: 1 << 10)
+    /// BitNow encounter-layer support. Advertising this bit only means the
+    /// client understands BitNow's opt-in encounter controls; no profile,
+    /// location, intent, or sexual-preference data is placed in the announce.
+    public static let bitNow = PeerCapabilities(rawValue: 1 << 11)
 
     /// Minimal little-endian byte encoding; always at least one byte so an
     /// empty set is distinguishable from an absent TLV.

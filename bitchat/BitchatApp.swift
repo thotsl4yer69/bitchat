@@ -1,6 +1,6 @@
 //
 // BitchatApp.swift
-// bitchat
+// BitNow product shell on the BitChat protocol core.
 //
 // This is free and unencumbered software released into the public domain.
 // For more information, see <https://unlicense.org>
@@ -30,7 +30,7 @@ struct BitchatApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            BitNowRootView()
                 .environment(\.appTheme, AppTheme(rawValue: appThemeRawValue) ?? .matrix)
                 .environmentObject(runtime.publicChatModel)
                 .environmentObject(runtime.privateInboxModel)
@@ -74,8 +74,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     weak var runtime: AppRuntime?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        // Installed before the first resign-active so the app-switcher snapshot
-        // never captures an open conversation.
         PrivacyScreen.shared.install()
         return true
     }
@@ -111,9 +109,6 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         let actionIdentifier = response.actionIdentifier
         let userInfo = response.notification.request.content.userInfo
 
-        // Complete only after the response is handled: for a background
-        // action (👋 wave) the system may suspend the app the moment the
-        // completion handler runs, which would drop the queued send.
         Task { @MainActor in
             self.runtime?.handleNotificationResponse(
                 identifier: identifier,

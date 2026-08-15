@@ -1,160 +1,223 @@
-# bitchat Privacy Policy
+# BitNow Privacy Policy
 
-*Last updated: July 2026*
+*Last updated: 15 August 2026*
 
-## Our Commitment
+## What BitNow Is
 
-bitchat is designed for private, account-free communication. This policy describes what the app keeps on your device, what it sends when you use mesh or optional internet features, and how long local data can remain.
+BitNow is an adults-only, proximity-first encounter and private messaging app built on the BitChat peer-to-peer transport stack. It is designed to let adults opt in for a short period, discover compatible BitNow users who are locally reachable, request a profile privately, exchange short-lived interest signals, and continue into encrypted private chat when they choose.
 
-## Summary
+BitNow does not require a project-operated account, does not publish an exact map location, and does not operate a centralized dating-profile database.
 
-- **No project-operated accounts or messaging servers** — Bluetooth mesh is peer-to-peer; optional internet features use public or user-selected Nostr relays.
-- **No analytics, advertising, telemetry, or tracking** — the app does not contain an analytics or advertising SDK.
-- **No sale of data** — the project does not sell user data or build advertising profiles.
-- **Open source** — the storage, networking, and cryptography described here can be inspected in the source code.
+## Adults Only
 
-## What bitchat Stores on Your Device
+BitNow is intended only for people aged 18 or older. The current release uses self-attested age rather than an external identity or age-verification provider. During onboarding, a user must confirm that they are at least 18 and acknowledge that an interest signal is not consent to sexual contact, physical contact, or any other activity.
 
-1. **Identity and cryptographic keys**
-   - Noise, signing, group, prekey, and optional Nostr identity material is generated locally.
-   - Secret keys are stored in the system keychain as device-only items. Public keys are shared when required for messaging, verification, groups, or Nostr events.
-   - Keys remain until they are rotated, removed by the relevant feature, or erased with panic wipe. Because operating-system keychains can outlive an uninstall, bitchat records a non-secret install marker and deletes surviving app keys before use after a later reinstall.
+If you are under 18, do not use BitNow.
 
-2. **Nickname, preferences, and relationships**
-   - Your nickname, settings, favorites, petnames, read-receipt identifiers, and bounded operational metadata are stored locally.
-   - The share extension can retain one item you choose to share in the app-group preferences for up to 24 hours. The app shows the destination and a preview for review; it does not send the item automatically. The item is cleared when you add it to the composer, cancel, panic-wipe, or it expires.
+## Privacy Summary
 
-3. **Private group state**
-   - Group names, rosters, creator identity, and key epoch are stored as protected files in Application Support.
-   - Current group keys are stored in the keychain. Group state remains until you leave or remove the group, panic-wipe the app, or remove the app.
+- **No BitNow account database.** Core encounter and messaging functions are peer-to-peer or use optional third-party relay infrastructure already provided by the BitChat transport layer.
+- **No public exact-location pin.** BitNow does not publish exact latitude or longitude as part of encounter discovery.
+- **Short, explicit visibility windows.** Encounter visibility is off by default and can be enabled for 30 minutes, 1 hour, 2 hours, or 4 hours. There is no permanent-visible mode.
+- **Minimal proximity advertisement.** A BitNow capability flag indicates only that a compatible adult user has intentionally made BitNow encounter discovery available. It does not broadcast the user's profile, age, identity, pronouns, preferences, encounter intent, or exact location.
+- **Profiles are requested one-to-one.** A BitNow profile is sent only through the private messaging transport after a profile request.
+- **No advertising or analytics SDK.** The current app does not include advertising, behavioral analytics, or tracking SDKs.
+- **No sale of data.** The project does not sell user data or build advertising profiles.
+- **Open source.** The relevant storage, networking, encounter, and cryptographic behavior can be inspected in the source code.
 
-4. **Queued and carried private messages**
-   - An outgoing private message that has not been acknowledged may remain for up to 24 hours in a bounded, encrypted outbox. The outbox is sealed with ChaCha20-Poly1305 and its key is stored in the keychain.
-   - A device acting as a courier may store a bounded opaque end-to-end encrypted envelope for another user for up to 24 hours. The courier cannot read its message content.
-   - A panic wipe deletes both stores.
+## Information You Choose to Store on Your Device
 
-5. **Recent public mesh messages and notices**
-   - Signed public mesh messages may be kept in a protected local gossip archive for up to 6 hours so they can cross mesh partitions and survive a relaunch.
-   - Public bulletin-board posts and deletion tombstones persist until the post's author-selected expiry, at most seven days. Both stores are bounded and panic-wipeable.
-   - These items are public to the mesh or board where they are posted; they are not confidential messages.
+### 1. BitNow encounter profile
 
-6. **Media attachments**
-   - Voice notes and images you send or receive can be stored under Application Support so they remain playable while referenced by the app.
-   - Incoming media is subject to a 100 MB quota with oldest-file eviction. All stored media, sent and received, is also deleted once it is more than seven days old, and immediately by panic wipe or app removal.
+BitNow can store the profile information you enter, including:
 
-7. **Optional location-channel state**
-   - Your selected geohash channel, bookmarks, teleport flags, and bookmark display names are stored locally so the UI can restore them.
-   - Per-geohash Nostr identities are derived locally from a device seed stored in the keychain.
-   - bitchat does not persist exact latitude or longitude and does not include exact coordinates in mesh or Nostr messages.
+- self-attested age;
+- whether your exact age is shown or only `18+` is shared;
+- identity selection;
+- optional pronouns;
+- headline;
+- about, boundaries, or vibe text;
+- primary encounter intent;
+- identities you indicate you are open to meeting; and
+- your current local discovery-filter settings.
 
-## Temporary Session Data
+These profile and preference values are stored locally on your device so the app can restore your settings. They are not uploaded to a BitNow-operated profile server.
 
-While running, bitchat maintains active connections, routing state, deduplication state, and bounded in-memory conversation timelines. Closing the app clears the in-memory timelines and active connections, but it does not erase the persistent stores listed above.
+The current profile field limits are deliberately bounded: headline up to 80 characters, about/boundaries up to 280 characters, and pronouns up to 24 characters.
 
-## What Is Shared
+### 2. Encounter availability
 
-### With Nearby Mesh Users
+BitNow stores whether you have enabled encounter visibility and the expiry time of the current visibility window. Visibility defaults to off. If a stored window has expired, BitNow removes the encounter-availability advertisement rather than silently extending it.
 
-Depending on the feature you use, nearby peers can receive:
+The radio-layer capability check independently verifies the expiry deadline, so suspending the app does not turn a short visibility window into permanent encounter advertising.
 
-- Your chosen nickname and public Noise/signing identity material.
-- Announce metadata such as supported capability flags and a bounded list of short direct-neighbor identifiers. When the bridge is enabled, an announce can also include its coarse rendezvous geohash cell.
-- Public mesh messages, public notices, and group-control packets you intentionally send.
-- Private ciphertext addressed to them, or opaque courier ciphertext they agree to carry.
-- Radio metadata available to the receiver, such as approximate Bluetooth signal strength.
+### 3. Interest signals and match state
 
-Noise identity keys can persist across sessions; do not treat them as anonymous identifiers. Panic wipe rotates local identity state.
+An outgoing BitNow interest signal is stored locally for the active encounter flow and expires after approximately 45 minutes. A mutual fresh signal can be shown as a match. Going invisible or allowing an availability window to expire clears active outgoing encounter signals.
 
-### With Private Group Members
+### 4. Identity and cryptographic material
 
-Private group members receive the group's name, roster, key epoch, and encrypted group traffic needed to participate. Group messages are confidential to devices holding the current group key, subject to the security of those devices and members.
+The underlying transport generates cryptographic identity, Noise, signing, group, prekey, and optional Nostr material locally. Secret keys are stored using operating-system protected storage such as the system keychain where supported. Public-key material is shared when required for secure messaging, verification, groups, relay transport, or protocol operation.
 
-### With Nostr Relays and Internet Gateways
+Underlying BitChat/Noise identity material can persist across sessions. **BitNow does not claim that your radio identity is anonymous or unlinkable across encounters.** A nearby observer or peer may be able to correlate protocol identifiers or other radio/network metadata over time.
 
-Internet-backed features are optional. When enabled or used:
+### 5. Private messages and queued delivery
 
-- Private fallback messages use BitChat's app-specific encrypted envelopes. This format is not NIP-17, NIP-44, or NIP-59 compatible. Relays can observe the recipient public-key tag, event timing and size, and network metadata, but not the message plaintext or stable sender identity.
-- Public location-channel messages, notes, notices, and presence include a geohash tag, event kind, timestamp, and a public key. A geohash reveals an approximate area; finer precision reveals a smaller area.
-- The optional mesh bridge publishes bridge-enabled public mesh messages and presence to a neighborhood rendezvous cell. Those messages are public to participants and relays for that cell. A per-message “nearby only” choice prevents that message from crossing the bridge.
-- Bridge courier drops contain opaque end-to-end encrypted envelopes and a rotating recipient tag. Relays still observe timing and network metadata.
-- A device with gateway features enabled may relay signed bridge/location traffic or opaque courier envelopes for nearby mesh devices.
+Private messages can remain locally in conversation state or bounded delivery queues according to the underlying BitChat transport behavior. An outgoing private message that has not yet been acknowledged may remain in an encrypted outbox for a bounded period. Devices participating in courier/store-and-forward operation can carry opaque end-to-end encrypted envelopes for other users without being able to read their plaintext.
 
-Nostr relays are operated by third parties. Their retention, logging, availability, and privacy practices are outside the project's control. Public events and encrypted events may remain on relays according to each relay's policy.
+### 6. Media and optional BitChat features
 
-You can add relays yourself in settings, including `.onion` addresses. Added relays are stored locally, are limited in number, and are erased by panic wipe. Tor routing is on by default; while it is off, every relay you connect to can see your IP address, including relays carrying your private messages.
+The encrypted chat layer includes existing BitChat functionality such as images, voice notes, groups, public mesh features, optional location channels, bridge/gateway features, and optional internet relay transport. If you use those features, their local storage and network behavior also applies. Media can remain in protected application storage while referenced by the app and is subject to the underlying bounded retention and cleanup behavior.
 
-## Location and Apple Services
+BitNow v1 does **not** yet define a separate BitNow profile-photo transport. A normal encrypted chat attachment is not the same thing as a BitNow profile image.
 
-Location permission is optional and requested as when-in-use access. It is used to compute geohash channels, bridge rendezvous cells, and nearby place labels.
+## What Nearby People Can Learn
 
-- Exact coordinates are not included in bitchat mesh or Nostr payloads and are not persisted by bitchat.
-- A selected geohash can still reveal an approximate area to peers and relays.
-- When bitchat asks the operating system for a friendly place name, Apple's `CLGeocoder` service may process the location under Apple's privacy terms.
-- Revoking location permission stops live location sampling. Saved bookmarks remain until you remove them, panic-wipe the app, or remove the app.
+When BitNow encounter visibility is active, compatible nearby peers can learn that your protocol identity currently advertises the BitNow capability. That flag means only that encounter discovery is available.
 
-## Microphone, Camera, and Media Permissions
+The BitNow capability does **not** itself reveal:
 
-- Microphone access is used only while you record a voice note or actively hold live push-to-talk. The resulting audio is sent to the mesh conversation you selected; public-conversation audio is public to that mesh, while private-conversation audio uses the private transport protections described below.
-- Voice-note and live-audio files can remain in Application Support under the media retention rules above.
-- Camera access is used to scan peer-verification QR codes. Photo-library access is used when you choose an image to send.
-- These permissions can be revoked in system settings. bitchat does not record microphone or camera input while the related capture UI is inactive.
+- your exact age;
+- your identity or pronouns;
+- who you are interested in meeting;
+- your current encounter intent;
+- your headline or about text; or
+- exact latitude or longitude.
+
+After another BitNow user requests your profile, the profile fields you intentionally share are sent to that peer through the private encrypted transport. If you hide your age, the shared profile represents it as `18+` instead of sending the exact age for display.
+
+When you send an interest signal, the signal can include the intentionally shared profile snapshot needed to give the recipient context for that signal.
+
+## Proximity and Radio Metadata
+
+BitNow discovery is based on local transport reachability rather than a public map of exact coordinates. The user interface uses coarse states such as `HERE NOW` and `NEARBY RECENTLY` rather than exposing continuous precise distance.
+
+This design does not eliminate radio metadata. Bluetooth peers, operating systems, network infrastructure, or third-party observers may be able to observe information such as:
+
+- Bluetooth signal strength;
+- protocol identifiers;
+- connection timing;
+- packet timing and size; and
+- network addresses or relay connection metadata when internet transport is used.
+
+Signal strength is not a precise measurement of physical distance and can vary substantially with walls, devices, bodies, antennas, and the environment.
+
+## Private Profile Requests and Control Messages
+
+BitNow profile requests, profile responses, and encounter signals use a versioned, size-bounded BitNow control envelope carried through the existing encrypted private-message delivery path. Malformed, oversized, unsupported, or semantically invalid BitNow control envelopes are rejected by the BitNow decoder.
+
+In the current v1 protocol, these control envelopes use the same encrypted private-message pipeline as ordinary direct messages. They therefore can exist in the local private-message history even when BitNow presents them as encounter controls rather than normal conversation content. A dedicated typed private-control transport is planned as a protocol hardening improvement.
+
+## Blocking
+
+BitNow provides local blocking using the existing private-conversation block controls. A blocked peer is excluded from BitNow discovery and from automatic profile-request responses on that device.
+
+Blocking on your device does not erase information that another person already received, copied, photographed, exported, or stored on another device.
+
+The current release does not operate a centralized moderation/reporting database. Local blocking should not be described as a centralized ban or platform-wide removal.
+
+## Optional Internet and Nostr Relay Features
+
+Some underlying BitChat features can use public or user-selected Nostr relays or gateway/bridge functions. These are optional and are not required to operate a centralized BitNow profile service.
+
+If you use internet-backed transport, third-party relays or gateways may observe metadata such as event timing, size, recipient tags, public keys used by the relevant protocol, IP/network information, or coarse geohash information for location-channel features. Relays are operated by third parties and their retention, logging, availability, and privacy practices are outside BitNow's control.
+
+Encrypted relay content may still remain on third-party infrastructure according to the relay operator's policy even after it is no longer visible in the app.
+
+## Location Services
+
+BitNow encounter discovery itself does not require publishing an exact GPS location to other encounter users.
+
+The inherited BitChat application also contains optional location-channel and place-label functionality. If you deliberately use those features and grant location permission, the app may process device location locally to derive coarse geohash/channel information or request a friendly place label from operating-system services. Exact latitude and longitude are not intentionally included in BitNow encounter profile or signal payloads.
+
+A geohash or coarse location channel is still location information: finer geohash precision can describe a smaller geographic area.
+
+## Microphone, Camera, Photos, and Bluetooth
+
+Depending on the feature you use:
+
+- **Bluetooth** is used for local peer discovery and mesh transport.
+- **Microphone** access is used for voice-note or live-audio features when you activate those controls.
+- **Camera** access can be used by existing peer-verification QR functionality.
+- **Photo-library/media access** is used when you choose media to send.
+- **Location** is used only by optional functionality that requests it, such as inherited location-channel/place-label features.
+
+BitNow does not need to continuously record microphone or camera input for encounter discovery.
 
 ## Cryptography
 
-Private and public features use different protections:
+The underlying transport uses different protections for different features, including Noise-based private mesh sessions and authenticated/encrypted private-message formats. Optional Nostr-backed transport uses its own signing, key-agreement, and encrypted-envelope mechanisms.
 
-- Mesh private sessions use Noise XX with X25519, ChaCha20-Poly1305, and SHA-256.
-- Private group messages use ChaCha20-Poly1305; group state and relevant mesh packets use Ed25519 signatures.
-- Nostr events use secp256k1 Schnorr signatures. BitChat private envelopes use secp256k1 key agreement, HKDF-SHA256, and XChaCha20-Poly1305. The envelope format is proprietary, only interoperates with BitChat clients, and does not provide forward secrecy against later compromise of the recipient's static Nostr private key.
-- The persistent private-message outbox uses ChaCha20-Poly1305 with a key held in the keychain. Some other protected local identity state uses AES-GCM.
-- Public mesh, bridge, geohash, and board content is signed or authenticated as appropriate but is intentionally not confidential.
+Cryptography protects data in transit only within its threat model. It cannot prevent a recipient from reading, copying, screenshotting, photographing, exporting, or redistributing information after receiving it. It also does not make Bluetooth or network metadata invisible.
 
-No cryptographic system can protect content after a recipient reads, copies, screenshots, or exports it.
+## Retention
 
-## Data Retention Summary
+BitNow-specific encounter state is intentionally short-lived where possible:
 
-- **In-memory chat timelines and active connections:** until the app closes or state is cleared.
-- **Queued outgoing private messages:** until acknowledged, dropped by bounded policy, or 24 hours, whichever comes first.
-- **Opaque courier envelopes:** until handed off, evicted by bounded policy, or 24 hours, whichever comes first.
-- **Recent public mesh gossip:** up to 6 hours.
-- **Public board posts and tombstones:** until expiry, at most seven days.
-- **Media:** seven days, or sooner by quota eviction, panic wipe, or app removal.
-- **Groups, favorites, preferences, identity keys, and bookmarks:** until removed by the feature, panic wipe, or app removal.
-- **Nostr data:** according to the policies of the relays that receive it.
+- **Encounter availability:** until the selected 30-minute, 1-hour, 2-hour, or 4-hour window expires, or until you stop availability sooner.
+- **Active outgoing encounter signals:** approximately 45 minutes, and cleared when availability is stopped or expires.
+- **Profile and discovery preferences:** stored locally until changed, reset, app data is removed, or the relevant privacy/purge control clears them.
+- **Underlying encrypted message/outbox/courier/media/public stores:** subject to the bounded retention behavior of the BitChat transport and the specific feature used.
+- **Third-party relay data:** subject to the relay operator's own retention policy and may not be recallable after publication.
 
 ## Your Controls
 
-- **Panic wipe:** Triple-tap the logo to synchronously cancel in-flight media work and clear local keys, sessions, preferences, groups, queues, carried mail, public archives, board data, and media managed by the app.
-- **Notification previews:** Hidden by default, so lock-screen alerts do not show message text, sender names, or geohashes. Full previews can be turned on in settings.
-- **Clearing a conversation:** Clearing the mesh timeline also deletes the recent public gossip this device had stored on disk.
-- **Feature controls:** Location channels, mesh bridge, internet gateway, and related internet behaviors can be disabled in the app. Some already-published relay data cannot be recalled.
-- **System permissions:** Bluetooth, location, microphone, camera, and photo-library access can be revoked in system settings.
-- **No account:** The project operates no account record for you to request or export.
+BitNow provides or inherits controls that can reduce retained or shared information:
 
-## What the Project Does Not Do
+- keep encounter visibility off unless you actively want to be discoverable;
+- choose a short availability window;
+- stop availability early;
+- hide exact age so the shared profile shows `18+`;
+- use local discovery filters;
+- block a peer;
+- clear active encounter state using BitNow's privacy/reset controls;
+- clear conversations or use inherited BitChat privacy/panic-wipe controls where available;
+- revoke Bluetooth, location, microphone, camera, or photo access through operating-system settings; and
+- disable optional internet/location/bridge features you do not want to use.
 
-bitchat does not:
+Some information already delivered to another device or published to a third-party relay cannot be remotely recalled.
 
-- Operate an account database or project-owned messaging backend.
-- Include advertising, analytics, or tracking SDKs.
-- Sell user data or create advertising profiles.
-- Include exact GPS coordinates in bitchat mesh or Nostr message payloads.
+## What BitNow Does Not Do
+
+The current BitNow release does not:
+
+- operate a centralized BitNow account or dating-profile database;
+- sell user data;
+- include advertising or behavioral-tracking SDKs;
+- broadcast your full encounter profile in the BitNow availability capability;
+- intentionally publish exact GPS coordinates in BitNow profile or signal payloads;
+- provide a permanent encounter-visible mode;
+- claim that a signal or match constitutes consent;
+- claim that the underlying Bluetooth/protocol identity is unlinkable;
+- provide centralized moderation/reporting; or
+- provide external identity or age verification in v1.
+
+## Safety, Consent, and Sensitive Information
+
+BitNow can involve sensitive personal information, including sexual or relationship preferences, identity information, age, and encounter intent. Share only information you are comfortable providing to another adult.
+
+A profile, signal, match, message, prior interaction, or physical proximity does not establish consent. Consent must be specific, voluntary, informed, ongoing, and can be withdrawn.
 
 ## Children's Privacy
 
-The project does not knowingly operate a service that collects children's personal data. The app has no account registration or age-verification system. Users and guardians should understand that public mesh, board, bridge, and location-channel posts are visible to other participants and may be relayed.
+BitNow is an adults-only product and is not intended for children or anyone under 18. The current release does not use a third-party age-verification service, so the age gate depends on the user's attestation. If BitNow becomes aware through a future project-operated reporting or account system that it holds information relating to a minor, the applicable removal and legal process will be documented for that system.
+
+## No Sale or Advertising Profile
+
+The project does not sell BitNow user data, rent encounter profiles to advertisers, or build behavioral advertising profiles. The current app does not include an advertising SDK.
 
 ## Changes to This Policy
 
-Material behavior changes will be reflected in this document and its “Last updated” date. Updating this policy cannot retroactively retrieve data that remained only on a user's device.
+Material changes to BitNow's data handling will be reflected in this policy and its `Last updated` date. A policy update cannot retroactively retrieve information that remained only on a user's device or recall information already received by another peer or third-party relay.
 
-## Contact
+## Contact and Source
 
-bitchat is an open source project. For privacy questions:
+BitNow is currently developed in the public source repository at:
 
-- View the source: [https://github.com/permissionlesstech/bitchat](https://github.com/permissionlesstech/bitchat)
-- Open an issue on GitHub.
+- `https://github.com/thotsl4yer69/bitchat`
+
+Privacy and security issues can be raised through the repository's issue/security channels while a dedicated BitNow support contact is being established for public release.
 
 ---
 
-*This policy is released into the public domain under The Unlicense, like the project itself.*
+This document describes the current application's implemented behavior. Store-specific disclosures and legally required notices must remain consistent with the shipping binary and any later backend, analytics, moderation, verification, payment, or account features that are added.

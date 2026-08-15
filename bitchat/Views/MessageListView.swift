@@ -610,7 +610,7 @@ private extension MessageListView {
 
     var targetPeerID: String? {
         if let peer = privatePeer,
-           let last = privateInboxModel.messages(for: peer).last?.id {
+           let last = conversationMessages(for: peer).last?.id {
             return "dm:\(peer)|\(last)"
         }
         if let last = publicChatModel.messages.last?.id {
@@ -665,7 +665,7 @@ private extension MessageListView {
 
     func onPrivateChatsChange(proxy: ScrollViewProxy) {
         guard let peerID = privatePeer else { return }
-        let messages = privateInboxModel.messages(for: peerID)
+        let messages = conversationMessages(for: peerID)
         let appendedCount = rebaselinedAppendedCount(newCount: unseenEligibleCount(in: messages))
         guard let lastMsg = messages.last else {
             // Timeline emptied (e.g. /clear): nothing below to jump to.
@@ -732,9 +732,14 @@ private extension MessageListView {
         }
     }
 
+    /// BitNow protocol controls remain in the raw private inbox so the dating
+    /// layer can process them, but they are not normal chat messages and must
+    /// not render or affect chat unread/scroll state.
     func conversationMessages(for privatePeer: PeerID?) -> [BitchatMessage] {
         if let privatePeer {
-            return privateInboxModel.messages(for: privatePeer)
+            return privateInboxModel.messages(for: privatePeer).filter {
+                BitNowWireCodec.decode($0.content) == nil
+            }
         }
         return publicChatModel.messages
     }

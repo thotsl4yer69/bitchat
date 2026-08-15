@@ -4,10 +4,12 @@
 <dict>
 	<key>AppGroupID</key>
 	<string>$(APP_GROUP_ID)</string>
+	<key>BitNowReportEmail</key>
+	<string>$(BITNOW_REPORT_EMAIL)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>bitchat</string>
+	<string>BitNow</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -36,17 +38,17 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>bitchat uses Bluetooth to create a secure mesh network for chatting with nearby users.</string>
+	<string>BitNow uses Bluetooth to discover nearby adults who opted into local dating discovery and to carry encrypted messages over the mesh.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>bitchat uses Bluetooth to discover and connect with other bitchat users nearby.</string>
+	<string>BitNow uses Bluetooth to appear to nearby compatible adults while you choose to be visible and to exchange encrypted dating signals.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>bitchat uses the camera to scan QR codes to verify peers.</string>
+	<string>BitNow uses the camera to scan QR codes for optional identity verification.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>bitchat uses your location to compute optional geohash channels, bridge cells, and nearby place labels. Exact coordinates are not included in bitchat messages.</string>
+	<string>BitNow may use location for optional coarse regional channels and place labels. Exact coordinates are not included in BitNow dating signals.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>bitchat uses the microphone while you record voice notes or hold live push-to-talk, then sends that audio to your selected mesh conversation.</string>
+	<string>BitNow uses the microphone when you choose to send a voice note or use live push-to-talk in an encrypted conversation.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>bitchat lets you pick images from your photo library to share with nearby peers.</string>
+	<string>BitNow lets you choose images to share in a conversation.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>
