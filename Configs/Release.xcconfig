@@ -12,6 +12,11 @@ CODE_SIGN_STYLE = Automatic
 PRODUCT_BUNDLE_IDENTIFIER = app.bitnow.mesh
 APP_GROUP_ID = group.app.bitnow.mesh
 
-// Keep local signing details out of source control while allowing both Debug
-// and Release device builds to use the same developer-specific override.
+// Required for public distribution. Keep blank in source so a developer's
+// personal support address is never published accidentally from this repo.
+// A signed store build must override this in Local.xcconfig/CI secrets.
+BITNOW_REPORT_EMAIL =
+
+// Keep local signing and operator details out of source control while allowing
+// both Debug and Release device builds to use developer-specific overrides.
 #include? "Local.xcconfig"
