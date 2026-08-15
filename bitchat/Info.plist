@@ -4,6 +4,8 @@
 <dict>
 	<key>AppGroupID</key>
 	<string>$(APP_GROUP_ID)</string>
+	<key>BitNowReportEmail</key>
+	<string>$(BITNOW_REPORT_EMAIL)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -36,13 +38,13 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>BitNow uses Bluetooth to discover nearby adults and carry encrypted messages over the local mesh.</string>
+	<string>BitNow uses Bluetooth to discover nearby adults who opted into local dating discovery and to carry encrypted messages over the mesh.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>BitNow uses Bluetooth to appear to nearby compatible peers and exchange encrypted encounter signals.</string>
+	<string>BitNow uses Bluetooth to appear to nearby compatible adults while you choose to be visible and to exchange encrypted dating signals.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>BitNow uses the camera to scan QR codes for optional identity verification.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>BitNow may use location for optional coarse regional channels and place labels. Exact coordinates are not included in BitNow encounter signals.</string>
+	<string>BitNow may use location for optional coarse regional channels and place labels. Exact coordinates are not included in BitNow dating signals.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>BitNow uses the microphone when you choose to send a voice note or use live push-to-talk in an encrypted conversation.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
