@@ -52,7 +52,7 @@ final class BitNowEncounterStore: ObservableObject {
 
         let storedAvailability = defaults.object(forKey: Self.availabilityUntilKey) as? Date
         if loadedProfile.visibleNearby,
-           loadedProfile.isAdult,
+           loadedProfile.isShareable,
            let storedAvailability,
            storedAvailability > Date() {
             availabilityUntil = storedAvailability
@@ -90,6 +90,10 @@ final class BitNowEncounterStore: ObservableObject {
         for window: BitNowAvailabilityWindow = .oneHour,
         now: Date = Date()
     ) {
+        guard profile.isShareable else {
+            stopAvailability(clearSignals: true)
+            return
+        }
         availabilityUntil = now.addingTimeInterval(window.duration)
         profile.visibleNearby = true
         persistRadioVisibility()
@@ -110,7 +114,7 @@ final class BitNowEncounterStore: ObservableObject {
 
     /// Returns true when an active availability window expired and state was
     /// changed. The radio capability independently checks the deadline too, so
-    /// suspension cannot extend encounter visibility.
+    /// suspension cannot extend dating visibility.
     @discardableResult
     func expireAvailabilityIfNeeded(now: Date = Date()) -> Bool {
         guard profile.visibleNearby else { return false }
@@ -122,6 +126,7 @@ final class BitNowEncounterStore: ObservableObject {
     }
 
     func recordOutgoingSignal(to peerID: PeerID, intent: BitNowIntent, now: Date = Date()) {
+        guard profile.isShareable else { return }
         outgoingSignals[peerID.id] = BitNowOutgoingSignal(
             peerID: peerID.id,
             intent: intent,
@@ -216,7 +221,7 @@ final class BitNowEncounterStore: ObservableObject {
     }
 
     private func syncAvailabilityWithProfile(now: Date = Date()) {
-        if profile.visibleNearby && profile.isAdult {
+        if profile.visibleNearby && profile.isShareable {
             if availabilityUntil == nil || (availabilityUntil ?? .distantPast) <= now {
                 availabilityUntil = now.addingTimeInterval(BitNowAvailabilityWindow.oneHour.duration)
             }
@@ -230,6 +235,7 @@ final class BitNowEncounterStore: ObservableObject {
         expirationTask = nil
 
         guard profile.visibleNearby,
+              profile.isShareable,
               let availabilityUntil else { return }
         let delay = availabilityUntil.timeIntervalSinceNow
         guard delay > 0 else {
@@ -269,7 +275,7 @@ final class BitNowEncounterStore: ObservableObject {
 
     private func persistRadioVisibility() {
         let active = profile.visibleNearby
-            && profile.isAdult
+            && profile.isShareable
             && (availabilityUntil?.timeIntervalSinceNow ?? -1) > 0
         defaults.set(active, forKey: Self.advertiseVisibilityKey)
     }
