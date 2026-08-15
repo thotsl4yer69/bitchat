@@ -99,7 +99,6 @@ private struct BitNowMainView: View {
 }
 
 private struct BitNowOnboardingView: View {
-    @EnvironmentObject private var peerListModel: PeerListModel
     @ObservedObject var store: BitNowEncounterStore
     @Binding var onboardingComplete: Bool
     @State private var age = 18
@@ -113,9 +112,9 @@ private struct BitNowOnboardingView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("BITNOW")
                             .font(.system(size: 42, weight: .black, design: .rounded))
-                        Text("who's actually here, right now")
+                        Text("who's actually nearby, now")
                             .font(.title3.weight(.semibold))
-                        Text("Adults-only proximity encounters over the BitChat mesh. No public exact-location pin and no account required for local discovery.")
+                        Text("Adults-only proximity dating and meetings over the BitChat mesh. No public exact-location pin and no account required for local discovery.")
                             .foregroundStyle(.secondary)
                     }
 
@@ -130,20 +129,20 @@ private struct BitNowOnboardingView: View {
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
 
                     VStack(alignment: .leading, spacing: 12) {
+                        Label("visibility stays off until you turn it on", systemImage: "eye.slash.fill")
                         Label("proximity without a map pin", systemImage: "location.slash.fill")
                         Label("encrypted direct chat", systemImage: "lock.fill")
                         Label("signals expire automatically", systemImage: "timer")
-                        Label("block and disappear at any time", systemImage: "hand.raised.fill")
+                        Label("block and report at any time", systemImage: "hand.raised.fill")
                     }
                     .font(.subheadline)
 
                     Button {
                         store.profile.age = age
-                        store.profile.visibleNearby = true
-                        peerListModel.refreshLocalAdvertisement()
+                        store.profile.visibleNearby = false
                         onboardingComplete = true
                     } label: {
-                        Text("enter bitnow")
+                        Text("finish setup")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
@@ -187,6 +186,7 @@ private struct BitNowNearbyView: View {
     @ObservedObject var store: BitNowEncounterStore
     @Binding var selectedTab: BitNowTab
     @State private var showingFilters = false
+    @State private var reportingPerson: BitNowReportContext?
 
     private var nearbyRows: [MeshPeerRow] {
         guard store.profile.visibleNearby else { return [] }
@@ -218,13 +218,13 @@ private struct BitNowNearbyView: View {
                 BitNowEmptyState(
                     title: "you are invisible",
                     systemImage: "eye.slash.fill",
-                    detail: "Turn nearby visibility back on from Me when you want to appear in the local encounter layer."
+                    detail: "Turn nearby visibility on from Me only when you want to appear in the local dating layer."
                 )
             } else if nearbyRows.isEmpty {
                 BitNowEmptyState(
                     title: "no matching BitNow peers nearby",
                     systemImage: "dot.radiowaves.left.and.right",
-                    detail: "Only nearby peers that explicitly advertise BitNow encounter availability appear here. Known profiles also respect your local filters."
+                    detail: "Only nearby adults who explicitly advertise BitNow availability appear here. Known profiles also respect your local filters."
                 )
             } else {
                 ScrollView {
@@ -242,6 +242,7 @@ private struct BitNowNearbyView: View {
                                 onRequestProfile: { requestProfile(from: row.peerID) },
                                 onSignal: { intent in sendSignal(to: row.peerID, intent: intent) },
                                 onChat: { openChat(with: row.peerID) },
+                                onReport: { report(row) },
                                 onBlock: { block(row) }
                             )
                         }
@@ -269,6 +270,17 @@ private struct BitNowNearbyView: View {
                 BitNowFiltersView(store: store)
             }
         }
+        .sheet(item: $reportingPerson) { context in
+            NavigationStack {
+                BitNowReportView(context: context) {
+                    conversationUIModel.block(
+                        peerID: context.peerID,
+                        displayName: context.displayName
+                    )
+                    store.clearSignal(for: context.peerID)
+                }
+            }
+        }
     }
 
     private func reciprocalFit(_ remoteProfile: BitNowSharedProfile?) -> Bool {
@@ -290,6 +302,10 @@ private struct BitNowNearbyView: View {
     private func openChat(with peerID: PeerID) {
         privateConversationModel.startConversation(with: peerID)
         selectedTab = .chats
+    }
+
+    private func report(_ row: MeshPeerRow) {
+        reportingPerson = BitNowReportContext(peerID: row.peerID, displayName: row.displayName)
     }
 
     private func block(_ row: MeshPeerRow) {
@@ -317,6 +333,7 @@ private struct BitNowNearbyCard: View {
     let onRequestProfile: () -> Void
     let onSignal: (BitNowIntent) -> Void
     let onChat: () -> Void
+    let onReport: () -> Void
     let onBlock: () -> Void
 
     var body: some View {
@@ -341,6 +358,9 @@ private struct BitNowNearbyCard: View {
                         .accessibilityLabel("mutual trusted contact")
                 }
                 Menu {
+                    Button(action: onReport) {
+                        Label("report", systemImage: "exclamationmark.bubble.fill")
+                    }
                     Button(role: .destructive, action: onBlock) {
                         Label("block", systemImage: "hand.raised.fill")
                     }
@@ -536,7 +556,7 @@ private struct BitNowProfileView: View {
                 Button("clear active signals", role: .destructive) {
                     store.clearAllSignals()
                 }
-                Button("erase encounter profile and preferences", role: .destructive) {
+                Button("erase dating profile and preferences", role: .destructive) {
                     store.clearLocalEncounterData()
                 }
             }
