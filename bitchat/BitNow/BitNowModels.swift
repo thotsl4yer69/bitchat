@@ -48,6 +48,38 @@ enum BitNowIdentity: String, Codable, CaseIterable, Identifiable, Hashable {
     }
 }
 
+enum BitNowProfileContentPolicy {
+    private static let blockedFragments = [
+        "i am under 18",
+        "i'm under 18",
+        "underage",
+        "13yo", "13 yo",
+        "14yo", "14 yo",
+        "15yo", "15 yo",
+        "16yo", "16 yo",
+        "17yo", "17 yo",
+        "pay for sex",
+        "cash for sex",
+        "sex for cash",
+        "buy sex",
+        "selling sex",
+        "escort service",
+        "escort services",
+        "prostitution",
+        "send nudes",
+        "nude pics",
+        "explicit videos"
+    ]
+
+    static func allows(headline: String, about: String, pronouns: String? = nil) -> Bool {
+        let combined = [headline, about, pronouns ?? ""]
+            .joined(separator: " ")
+            .lowercased()
+            .replacingOccurrences(of: "\n", with: " ")
+        return !blockedFragments.contains { combined.contains($0) }
+    }
+}
+
 struct BitNowProfile: Codable, Equatable {
     var age: Int = 18
     var headline: String = ""
@@ -62,6 +94,14 @@ struct BitNowProfile: Codable, Equatable {
     var pronouns: String? = nil
 
     var isAdult: Bool { (18...99).contains(age) }
+
+    var isShareable: Bool {
+        isAdult && BitNowProfileContentPolicy.allows(
+            headline: headline,
+            about: about,
+            pronouns: pronouns
+        )
+    }
 
     var interestedInSet: Set<BitNowIdentity> {
         get { interestedIn ?? [] }
@@ -115,6 +155,11 @@ struct BitNowSharedProfile: Codable, Equatable {
             && headline.count <= Self.maxHeadlineLength
             && about.count <= Self.maxAboutLength
             && (pronouns?.count ?? 0) <= Self.maxPronounsLength
+            && BitNowProfileContentPolicy.allows(
+                headline: headline,
+                about: about,
+                pronouns: pronouns
+            )
     }
 
     func appearsInterestedIn(_ localIdentity: BitNowIdentity?) -> Bool {
