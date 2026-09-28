@@ -92,7 +92,7 @@ struct BitNowReportView: View {
                         Text(reason.rawValue).tag(reason)
                     }
                 }
-                .pickerStyle(.navigationLink)
+                .pickerStyle(.menu)
             }
 
             Section("details") {
