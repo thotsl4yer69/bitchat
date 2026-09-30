@@ -11,20 +11,35 @@ struct RelayDecision {
 struct RelayController {
     static func decide(ttl: UInt8,
                        senderIsSelf: Bool,
-                       isEncrypted: Bool,
+                       recipientIsSelf: Bool = false,
+                       isEncrypted _: Bool,
                        isDirectedEncrypted: Bool,
+                       isFragment: Bool,
                        isDirectedFragment: Bool,
                        isHandshake: Bool,
                        isAnnounce: Bool,
+                       isRequestSync: Bool = false,
+                       isUrgentBoardPost: Bool = false,
+                       isVoiceFrame: Bool = false,
                        degree: Int,
                        highDegreeThreshold: Int) -> RelayDecision {
+        let ttlCap = min(ttl, TransportConfig.messageTTLDefault)
+
+        // REQUEST_SYNC is link-local: never relay it, even when a peer crafts
+        // one with TTL headroom to turn every reachable node into a responder.
+        if isRequestSync {
+            return RelayDecision(shouldRelay: false, newTTL: ttlCap, delayMs: 0)
+        }
+
         // Suppress obvious non-relays
-        if ttl <= 1 || senderIsSelf { return RelayDecision(shouldRelay: false, newTTL: ttl, delayMs: 0) }
+        if ttlCap <= 1 || senderIsSelf || recipientIsSelf {
+            return RelayDecision(shouldRelay: false, newTTL: ttlCap, delayMs: 0)
+        }
 
         // For session-critical or directed traffic, be deterministic and reliable
         if isHandshake || isDirectedFragment || isDirectedEncrypted {
             // Always relay with no TTL cap for these types
-            let newTTL = (ttl &- 1)
+            let newTTL = ttlCap &- 1
             // Slight jitter to desynchronize without adding too much latency
             // Tighter for faster multi-hop handshakes and directed DMs
             let delayRange: ClosedRange<Int> = isHandshake ? 10...35 : 20...60
@@ -32,28 +47,41 @@ struct RelayController {
             return RelayDecision(shouldRelay: true, newTTL: newTTL, delayMs: delayMs)
         }
 
-        // Degree-aware probability to reduce floods in dense graphs (broadcast/public)
-        let baseProb: Double
-        switch degree {
-        case 0...2: baseProb = 1.0
-        case 3...4: baseProb = 0.9
-        case 5...6: baseProb = 0.7
-        case 7...9: baseProb = 0.55
-        default:    baseProb = 0.45
+        // Live voice floods with the fragment policy: the dense clamp
+        // contains the sustained ~15 pkt/s per-talker stream, and the tight
+        // jitter window keeps per-hop latency inside the receiver's ~350 ms
+        // jitter buffer across multi-hop paths.
+        if isFragment || isVoiceFrame {
+            // Dense graphs clamp harder to contain full-fanout fragment floods;
+            // sparse graphs get full depth so media reaches as far as text.
+            let fragmentCap = degree >= highDegreeThreshold
+                ? TransportConfig.bleFragmentRelayTtlCapDense
+                : TransportConfig.bleFragmentRelayTtlCap
+            let ttlLimit = min(ttlCap, fragmentCap)
+            guard ttlLimit > 1 else {
+                return RelayDecision(shouldRelay: false, newTTL: ttlLimit, delayMs: 0)
+            }
+            let newTTL = ttlLimit &- 1
+            let delayMs = Int.random(in: TransportConfig.bleFragmentRelayMinDelayMs...TransportConfig.bleFragmentRelayMaxDelayMs)
+            return RelayDecision(shouldRelay: true, newTTL: newTTL, delayMs: delayMs)
         }
-        let prob = baseProb
-        let shouldRelay = Double.random(in: 0...1) <= prob
 
         // TTL clamping for broadcast
-        // - Dense graphs: keep very low to avoid floods
-        // - Sparse graphs: allow slightly longer reach for multi-hop discovery
-        // - Announces in sparse graphs get a bit more headroom
-        let ttlCap: UInt8 = {
-            if degree >= highDegreeThreshold { return 3 }
-            return isAnnounce ? 7 : 6
+        // - Dense graphs: keep lower but still allow multi-hop bridging
+        // - Thin chains (degree <= 2): every hop counts and flood cost is
+        //   minimal, so relay at full incoming depth
+        // - Announces (and urgent board posts) get a bit more headroom
+        let ttlLimit: UInt8 = {
+            if degree >= highDegreeThreshold {
+                return max(UInt8(2), min(ttlCap, UInt8(5)))
+            }
+            if degree <= 2 {
+                return ttlCap
+            }
+            let preferred = UInt8((isAnnounce || isUrgentBoardPost) ? 7 : 6)
+            return max(UInt8(2), min(ttlCap, preferred))
         }()
-        let clamped = max(1, min(ttl, ttlCap))
-        let newTTL = clamped &- 1
+        let newTTL = ttlLimit &- 1
 
         // Wider jitter window to allow duplicate suppression to win more often
         // For sparse graphs (<=2), relay quickly to avoid cancellation races
@@ -64,6 +92,6 @@ struct RelayController {
         case 6...9: delayMs = Int.random(in: 80...180)
         default:    delayMs = Int.random(in: 100...220)
         }
-        return RelayDecision(shouldRelay: shouldRelay, newTTL: newTTL, delayMs: delayMs)
+        return RelayDecision(shouldRelay: true, newTTL: newTTL, delayMs: delayMs)
     }
 }

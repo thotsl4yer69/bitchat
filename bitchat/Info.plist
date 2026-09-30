@@ -2,10 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>AppGroupID</key>
+	<string>$(APP_GROUP_ID)</string>
+	<key>BitNowReportEmail</key>
+	<string>$(BITNOW_REPORT_EMAIL)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>bitchat</string>
+	<string>BitNow</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -29,16 +33,22 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.social-networking</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>bitchat uses Bluetooth to create a secure mesh network for chatting with nearby users.</string>
+	<string>BitNow uses Bluetooth to discover nearby adults who opted into local dating discovery and to carry encrypted messages over the mesh.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>bitchat uses Bluetooth to discover and connect with other bitchat users nearby.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>bitchat uses your approximate location to compute local geohash channels for optional public chats. Exact GPS is never shared.</string>
+	<string>BitNow uses Bluetooth to appear to nearby compatible adults while you choose to be visible and to exchange encrypted dating signals.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>bitchat uses the camera to scan QR codes to verify peers.</string>
+	<string>BitNow uses the camera to scan QR codes for optional identity verification.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>BitNow may use location for optional coarse regional channels and place labels. Exact coordinates are not included in BitNow dating signals.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BitNow uses the microphone when you choose to send a voice note or use live push-to-talk in an encrypted conversation.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>BitNow lets you choose images to share in a conversation.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>
